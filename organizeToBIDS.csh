@@ -1,8 +1,21 @@
 
-# Script created by Jerry French and Vinai Roopchansingh to organize
-# .tgz files of DICOM data acquired on research MR scanners, and
-# organized by the PackRat software stack.
+# # Labels for PDN data
+# set anatMatchString0 = "RAGE"
+# set funcMatchString0 = "EPI"
+# set funcMatchString1 = "8min"
+# set fmapMatchString0 = "B0"
+# set  dtiMatchString0 = "DTI"
 
+# Labels for X-scanner data
+set anatMatchString0 = "RAGE"
+set anatMatchString1 = "T2"
+set funcMatchString0 = "3mm_iso"
+set funcMatchString1 = "cal"
+set fmapMatchString0 = "B0"
+set fmapMatchString1 = ""
+set  dtiMatchString0 = "DTI"
+
+### For final run ###
 set patientFolders = `find . -maxdepth 1 -mindepth 1 -type d`
 
 # echo List of patient folders is: $patientFolders
@@ -36,56 +49,84 @@ foreach patientDir ($patientFolders)
       set scanFolders = `find . -maxdepth 4 -mindepth 1 -type d -name "mr*"`
       
       ### Counters for each type of data being organized to BIDS ###
-      set countAnatT1Datasets = 1
+      set countAnatDatasets = 1
       set countRestDatasets = 1
       set countB0MagDatasets = 1
       set countB0FreqDatasets = 1
       set countOppEpiDatasets = 1
+      set countDTIDatasets = 1
 
       foreach folder ( $scanFolders )
          set referenceFile = `ls -1 $folder/*.dcm | head -1`
          set seriesDescription = `dicom_hdr $referenceFile | grep -i "series description"`
 
          ### Locate MP-RAGE data ###
-         echo $seriesDescription | grep -iq "rage"
+         echo $seriesDescription | grep -iq $anatMatchString0
          if ($?) then
             : # echo Folder $folder does not contain MP-RAGE data.
          else
-            set printAnatT1=`printf "%02d" $countAnatT1Datasets`
+            set printAnat=`printf "%02d" $countAnatDatasets`
             if (! -d $subjectBIDSTopDir/anat) then
                # echo CREATING DIRECTORY $subjectBIDSTopDir/anat
                mkdir -p $subjectBIDSTopDir/anat
             # else
                # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/anat
             endif
-            set datasetPrefix = $subjectID\_run-$printAnatT1\_T1w
+            set datasetPrefix = $subjectID\_run-$printAnat\_T1w
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $subjectBIDSTopDir/anat
-            set countAnatT1Datasets = `expr $countAnatT1Datasets + 1`
+            set countAnatDatasets = `expr $countAnatDatasets + 1`
+            continue
+         endif
+
+         ### Locate T2 data ###
+         echo $seriesDescription | grep -iq $anatMatchString1
+         if ($?) then
+            : # echo Folder $folder does not contain MP-RAGE data.
+         else
+            set printAnat=`printf "%02d" $countAnatDatasets`
+            if (! -d $subjectBIDSTopDir/anat) then
+               # echo CREATING DIRECTORY $subjectBIDSTopDir/anat
+               mkdir -p $subjectBIDSTopDir/anat
+            # else
+               # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/anat
+            endif
+            set datasetPrefix = $subjectID\_run-$printAnat\_T2w
+            Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+            mv $datasetPrefix* $subjectBIDSTopDir/anat
+            set countAnatDatasets = `expr $countAnatDatasets + 1`
+            continue
+         endif
+
+         ### Locate DTI data ###
+         echo $seriesDescription | grep -iq $dtiMatchString0
+         if ($?) then
+            : # echo Folder $folder does not contain MP-RAGE data.
+         else
+            set printAnat=`printf "%02d" $countDTIDatasets`
+            if (! -d $subjectBIDSTopDir/dwi) then
+               # echo CREATING DIRECTORY $subjectBIDSTopDir/anat
+               mkdir -p $subjectBIDSTopDir/dwi
+            # else
+               # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/anat
+            endif
+            set datasetPrefix = $subjectID\_run-$printAnat\_dwi
+            Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+            mv $datasetPrefix* $subjectBIDSTopDir/dwi
+            set countDTIDatasets = `expr $countDTIDatasets + 1`
             continue
          endif
 
          ### Locate EPI data ###
-         echo $seriesDescription | grep -iq "epi"
+         echo $seriesDescription | grep -iq $funcMatchString0
          if ($?) then
             : # echo Folder $folder does not contain EPI data.
          else
-            echo $seriesDescription | grep -iq "8min"
+            echo $seriesDescription | grep -iq $funcMatchString1
             if ($?) then
-               if (! -d $subjectBIDSTopDir/fmap) then
-                  # echo CREATING DIRECTORY $subjectBIDSTopDir/fmap
-                  mkdir -p $subjectBIDSTopDir/fmap
-               # else
-                  # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/fmap
-               endif
-               set printOppEpi=`printf "%02d" $countOppEpiDatasets`
-               set datasetPrefix = $subjectID\_dir-y-_run-$printOppEpi\_epi
-               Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                     -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-               mv $datasetPrefix* $subjectBIDSTopDir/fmap
-               set countOppEpiDatasets = `expr $countOppEpiDatasets + 1`
-            else
                if (! -d $subjectBIDSTopDir/func) then
                   # echo CREATING DIRECTORY $subjectBIDSTopDir/func
                   mkdir -p $subjectBIDSTopDir/func
@@ -98,12 +139,25 @@ foreach patientDir ($patientFolders)
                      -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
                mv $datasetPrefix* $subjectBIDSTopDir/func
                set countRestDatasets = `expr $countRestDatasets + 1`
+            else
+               if (! -d $subjectBIDSTopDir/fmap) then
+                  # echo CREATING DIRECTORY $subjectBIDSTopDir/fmap
+                  mkdir -p $subjectBIDSTopDir/fmap
+               # else
+                  # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/fmap
+               endif
+               set printOppEpi=`printf "%02d" $countOppEpiDatasets`
+               set datasetPrefix = $subjectID\_dir-y-_run-$printOppEpi\_epi
+               Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                     -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+               mv $datasetPrefix* $subjectBIDSTopDir/fmap
+               set countOppEpiDatasets = `expr $countOppEpiDatasets + 1`
             endif
             continue
          endif
 
          ### Locate B0 data ###
-         echo $seriesDescription | grep -iq "b0"
+         echo $seriesDescription | grep -iq $fmapMatchString0
          if ($?) then
             : # echo Folder $folder does not contain B0 data.
          else
