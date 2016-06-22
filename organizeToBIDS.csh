@@ -24,14 +24,19 @@ foreach patientDir ($patientFolders)
    # echo Entering patient folder $patientDir
    cd $patientDir
 
-   # Make subject top-level BIDS folder
-   set subjectID = sub-`echo $patientDir | cut -d "/" -f2`
-   mkdir $subjectID
-   cd $subjectID
-   set subjectBIDSTopDir = `pwd`
-   cd ..
-
+   # Get list of all files to be unpacked.
    set scanArchiveList = `ls *.tgz`
+
+   if ("$scanArchiveList" == "") then
+      echo No archive files found in $patientDir.  Moving to next folder.
+   else
+      # Make subject top-level BIDS folder
+      set subjectID = sub-`echo $patientDir | cut -d "/" -f2`
+      mkdir $subjectID
+      cd $subjectID
+      set subjectBIDSTopDir = `pwd`
+      cd ..
+   endif
 
    # echo Unpacking archive $scanArchiveList
    foreach patientSessionArchive ($scanArchiveList)
