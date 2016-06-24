@@ -41,8 +41,11 @@ foreach patientDir ($patientFolders)
    # echo Unpacking archive $scanArchiveList
    foreach patientSessionArchive ($scanArchiveList)
       # echo Unpacking session $patientSessionArchive
+      echo "Archive found. Unpacking ..."
       tar xfz $patientSessionArchive
    end
+
+   echo "Done unpacking archives. Now organizing into BIDS folders."
 
    set sessionFolders = `find . -maxdepth 2 -mindepth 2 -type d`
 
