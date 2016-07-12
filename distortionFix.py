@@ -41,6 +41,9 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                   '-blip_reverse_dset', blipHead,
                   '-volreg_align_e2a'])
 
+         # Have to trap output of subprocess as to the script that was created and then use
+         # another subprocess command to run it.
+
 
 
 def main():
