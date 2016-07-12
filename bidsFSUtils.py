@@ -16,20 +16,15 @@ class bidsToolsFS:
    '''
 
 
-   #def __init__(self):
+   # def __init__(self):
       # print "Doing not much at all"
 
 
    def buildBIDSDict(self, bidsDir):
 
-      print "BIDS tree is " + bidsDir
       bidsFS = fsopendir(bidsDir)
 
       # internalBIDSPath = bidsFS._decode_path(bidsDir)
-
-      # allFiles = bidsFS.walkfiles()
-      subDirs = bidsFS.walkdirs(wildcard="*sub-*")
-      subjectList = []
 
       allRuns = bidsFS.walkfiles(wildcard="*run*")
       # Store all unique dataset names
@@ -43,7 +38,6 @@ class bidsToolsFS:
          runRootName = eachRun.split("+")[0]
          if runRootName not in runsList:
             runsList.append(runRootName)
-      # print str(runsList)
 
       bidsMasterTreeDict = {}
 
@@ -67,7 +61,7 @@ class bidsToolsFS:
             thisRunNameSession = runNameElements[-3]
             thisRunNameSub = runNameElements[-4]
          else:
-            thisRunNameSession = 'ses-0'
+            thisRunNameSession = 'ses-NULL' # to indicate an artificially generated session, since none was explicity present in the original directory structure
             thisRunNameSub = runNameElements[-3]
 
          if thisRunNameSub not in bidsMasterTreeDict.keys():
@@ -110,11 +104,9 @@ def main():
    options, args = parser.parse_args()
 
    bidsDict = bidsToolsFS().buildBIDSDict(options.dataDir)
-   
-   for eachSubject in bidsDict.keys():
-      print "Subject's " + eachSubject + " dictionary is " + str(bidsDict[eachSubject])
 
 
 
 if __name__ == '__main__':
    sys.exit(main())
+
