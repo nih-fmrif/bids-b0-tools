@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import time, sys, os, subprocess
+import time, sys, os
+from   subprocess import Popen, PIPE, STDOUT
 from   optparse  import  OptionParser
 from   bidsFSUtils import bidsToolsFS
 
@@ -8,6 +9,13 @@ from   bidsFSUtils import bidsToolsFS
 
 def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 
+   t1wRunKey = "T1w"
+   restRunKey = "dir-y_run"
+   blipRevRunKey = "dir-y-_run"
+   magRunKey = "magnitude"
+   freqRunKey = "frequency"
+   dataNeedingGiantMove = ["",""] # Enter subject IDs that need giant_move
+   
    for eachSubject in bidsSubjectDict.keys():
 
       subjLoc = bidsTopLevelDir + eachSubject + "/"
@@ -23,27 +31,70 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 
             for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
                runLoc = scanTypeLoc + eachRun
-               if "T1w" in runLoc:
+               if t1wRunKey in runLoc:
                   anatOrig = runLoc + "+orig"
+               elif restRunKey in runLoc: # For this analysis we use the resting/task
+		                          # for the forward calibration scan. Not
+		                          # always going to be the case.
+                  blipForHead = runLoc + '+orig.HEAD[1]'
+                  # Make copy of volume 0 of EPI time series to original location so it can
+                  # be found by afni_proc.py.  Testing distortion correction and alignment
+                  # with a single volume for now.
+                  restDset = scanTypeLoc + 'data2Fix'
+                  restDsetCopyCmd = "3dTcat -prefix " + restDset + " " + runLoc + "+orig[0]"
+                  os.system (restDsetCopyCmd)
+               elif blipRevRunKey in runLoc:
+                  blipRevHead = runLoc + '+orig.HEAD[1]'
+               # elif magRunKey in runLoc:
+               #    magOrig = runLoc + "+orig"
+               #    magNiiGz = runLoc + ".nii.gz"
+               # elif freqRunKey in runLoc:
+               #    freqOrig = runLoc + "+orig"
+               else:
+                  pass
 
-               if "dir-y_run" in runLoc:
-                  restHead = runLoc + "+orig.HEAD"
+         if eachSubject in dataNeedingGiantMove:
+            giantMoveOption = "-giant_move"
+         else:
+            giantMoveOption = ""
 
-               if "dir-y-_run" in runLoc:
-                  blipHead = runLoc + "+orig.HEAD"
+         afniSubProc = ["afni_proc.py", "-subj_id", eachSubject,
+                  "-copy_anat", anatOrig,
+                  "-dsets", restDset + "+orig",
+                  "-blocks", "align",
+                  "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveOption,
+                  "-blip_reverse_dset", blipRevHead,
+                  "-blip_forward_dset", blipForHead
+                  ]
 
          # Run afni_proc.py to generate the analysis tcsh script for each session
          # of collected data.
-         subprocess.Popen(['afni_proc.py', '-subj_id', eachSubject,
-                  '-copy_anat', anatOrig,
-                  '-dsets', restHead,
-                  '-blocks', 'tshift', 'align', 'volreg',
-                  '-blip_reverse_dset', blipHead,
-                  '-volreg_align_e2a'])
+         afniPreProc = Popen(afniSubProc, stdout=PIPE, stderr=PIPE)
 
-         # Have to trap output of subprocess as to the script that was created and then use
-         # another subprocess command to run it.
-
+         """
+         # The following will be used for analyzing the same data using FSL.
+         # This may be added as a command line option.
+         
+         fslPreProcA = Popen(["3dSkullStrip", "-input", magOrig,
+                    "-prefix", magNiiGz])
+         fslPreProcB = Popen(["3dcalc", "-a", P9999_B0+orig, "-b", magNiiGz,
+                    "-expr", "`1000.0 * a * step(b)`", "-datum", "float",
+                    "-prefix", fmap_Bo_rps.nii.gz])
+         fslPreProcC = Popen(["3dresample", "-inset", fmap_Bo_rps.nii.gz,
+                    "-prefix", fmap_Bo_rps_rs.nii.gz, "-master",
+                    EPIset.nii.gz])
+ 
+         fslProcA = Popen(["fugue", "-i", EPIset, "-u", EPIdewarp,
+                    "--loadfmap="fmap_Bo_rps_rs,
+                    "--despike",
+                    "--smooth2=___",    # specify smoothing sigma.
+                    "--dwell=___",      # EPI dwell time/echo spacing. i.e. 650e-6 for 650 microseconds.
+                    "--unwarpdir=___"]) # EPI phase encoding direction - x,x-,y,y-,z,z-.
+         fslProcB = Popen(["topup", "--imain="all_my_b0_images.nii,
+                    "--datain="acquisition_parameters.txt,
+                    "--config="b02b0.cnf,
+                    "--out="my_output])
+         """
 
 
 def main():

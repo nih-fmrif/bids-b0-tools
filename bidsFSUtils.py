@@ -7,13 +7,13 @@ from   fs.opener import fsopendir, fsopen
 
 
 class bidsToolsFS:
-   '''
+   """
 
    This class is designed to traverse a BIDS formatted data tree, and label
    the necessary data sets in each subject's folder needed for a particular
    analysis.
 
-   '''
+   """
 
 
    # def __init__(self):
@@ -57,11 +57,11 @@ class bidsToolsFS:
          thisRunName = runNameElements[-1]
          thisRunNameScanType = runNameElements[-2]
 
-         if 'ses-' in runNameElements[-3]:
+         if "ses-" in runNameElements[-3]:
             thisRunNameSession = runNameElements[-3]
             thisRunNameSub = runNameElements[-4]
          else:
-            thisRunNameSession = 'ses-NULL' # to indicate an artificially generated session, since none was explicity present in the original directory structure
+            thisRunNameSession = "ses-NULL" # to indicate an artificially generated session, since none was explicity present in the original directory structure
             thisRunNameSub = runNameElements[-3]
 
          if thisRunNameSub not in bidsMasterTreeDict.keys():
