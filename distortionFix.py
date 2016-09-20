@@ -15,7 +15,7 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
    magRunKey = "magnitude"
    freqRunKey = "frequency"
    dataNeedingGiantMove = ["",""] # Enter subject IDs that need giant_move
-   
+
    for eachSubject in bidsSubjectDict.keys():
 
       subjLoc = bidsTopLevelDir + eachSubject + "/"
@@ -47,7 +47,6 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                   blipRevHead = runLoc + '+orig.HEAD[1]'
                # elif magRunKey in runLoc:
                #    magOrig = runLoc + "+orig"
-               #    magNiiGz = runLoc + ".nii.gz"
                # elif freqRunKey in runLoc:
                #    freqOrig = runLoc + "+orig"
                else:
@@ -59,17 +58,120 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             giantMoveOption = ""
 
          afniSubProc = ["afni_proc.py", "-subj_id", eachSubject,
-                  "-copy_anat", anatOrig,
-                  "-dsets", restDset + "+orig",
-                  "-blocks", "align",
-                  "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveOption,
-                  "-blip_reverse_dset", blipRevHead,
-                  "-blip_forward_dset", blipForHead
-                  ]
+                        "-copy_anat", anatOrig,
+                        "-dsets", restDset + "+orig",
+                        "-blocks", "align",
+                        "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveOption,
+                        "-blip_reverse_dset", blipRevHead,
+                        "-blip_forward_dset", blipForHead
+                        ]
 
          # Run afni_proc.py to generate the analysis tcsh script for each session
          # of collected data.
          afniPreProc = Popen(afniSubProc, stdout=PIPE, stderr=PIPE)
+
+def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
+
+   t1wRunKey = "T1w"
+   restRunKey = "dir-y_run"
+   blipRevRunKey = "dir-y-_run"
+   magRunKey = "magnitude"
+   freqRunKey = "frequency"
+   dataNeedingGiantMove = ["",""] # Enter subject IDs that need giant_move
+
+   for eachSubject in bidsSubjectDict.keys():
+
+      subjLoc = bidsTopLevelDir + eachSubject + "/"
+
+      for eachSession in bidsSubjectDict[eachSubject].keys():
+         if "NULL" in eachSession:
+            sessLoc = subjLoc
+         else:
+            sessLoc = subjLoc + eachSession + "/"
+
+         for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
+            scanTypeLoc = sessLoc + eachScanType + "/"
+
+            for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
+               runLoc = scanTypeLoc + eachRun
+               if t1wRunKey in runLoc:
+                  anatOrig = runLoc + "+orig"
+               elif restRunKey in runLoc: # For this analysis we use the resting/task
+		                          # for the forward calibration scan. Not
+		                          # always going to be the case.
+                  blipRest = runLoc + '+orig[0..29]'
+                  restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubject + ".nii.gz" + " " + blipRest
+                  os.system (restDsetCopyCmd)
+                  blipFor = runLoc + '+orig[1]'
+               elif blipRevRunKey in runLoc:
+                  blipRev = runLoc + '+orig[1]'
+               # elif magRunKey in runLoc:
+               #    magOrig = runLoc + "+orig"
+               # elif freqRunKey in runLoc:
+               #    freqOrig = runLoc + "+orig"
+               else:
+                  pass
+
+         acqParams = "acqParams.txt" # name of the text file with four columns
+         warpRes = "10" # default is 10
+         bothBlipsCmd = "3dTcat -prefix bothBlips-" + eachSubject + ".nii.gz" + " " + blipRev + " " + blipFor
+         os.system (bothBlipsCmd)
+
+         # Gather inputs and execute topup command
+         imainInputA = "--imain=bothBlips-" + eachSubject
+         datainInputA = "--datain=" + acqParams
+         configInput = "--config=b02b0.cnf"
+         outInputA = "--out=warpField-" + eachSubject
+         warpresInput = "--warpres=" + warpRes
+         print "Step 1: Running topup on " + str(eachSubject)
+         fslProcA = Popen(["topup", imainInputA, datainInputA, outInputA,
+                           configInput], stdout=PIPE, stderr=PIPE)
+         fslProcA.wait()
+
+         # When topup completes, gather inputs and execute applytopup command
+         # This will generate distortion-corrected EPIs using the warp field
+         # output from topup.
+         imainInputB = "--imain=rest-" + eachSubject
+         inindexInput = "--inindex=2"
+         datainInputB = "--datain=" + acqParams
+         topupInput = "--topup=warpField-" + eachSubject
+         interpInput = "--interp=spline"
+         outInputB = "--out=restCorrected-" + eachSubject
+         methodInput = "--method=jac"
+         print "Step 2: Running applytopup on " + str(eachSubject)
+         fslProcB = Popen(["applytopup", imainInputB, inindexInput,
+                           datainInputB, topupInput, interpInput, outInputB,
+                           methodInput], stdout=PIPE, stderr=PIPE)
+         fslProcB.wait()
+
+         # When applytopup completes, gather inputs and execute afni_proc.py command.
+         # This is to align the anatomical scan to the FSL output EPIs.
+         if eachSubject in dataNeedingGiantMove:
+            giantMoveOption = "-giant_move"
+         else:
+            giantMoveOption = ""
+
+         dsetsInput = "restCorrected-" + eachSubject + ".nii.gz"
+         print "Step 3: Running afni_proc.py on " + str(eachSubject)
+         afniSubProc = ["afni_proc.py", "-subj_id", eachSubject,
+                        "-copy_anat", anatOrig,
+                        "-dsets", dsetsInput,
+                        "-blocks", "align",
+                        "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveOption,
+                        "-execute"
+                        ]
+
+         # Run afni_proc.py to generate the analysis tcsh script for each session
+         # of collected data.
+         afniPreProc = Popen(afniSubProc, stdout=PIPE, stderr=PIPE)
+         afniPreProc.wait()
+
+         # Move files created by topup and applytopup to subject's results folder
+         # that was created after AFNI alignment
+         moveDestInput = eachSubject + ".results/"
+         moveFilesInput = "*?" + eachSubject + "*"
+         os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+
 
          """
          # The following will be used for analyzing the same data using FSL.
@@ -88,12 +190,9 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                     "--loadfmap="fmap_Bo_rps_rs,
                     "--despike",
                     "--smooth2=___",    # specify smoothing sigma.
-                    "--dwell=___",      # EPI dwell time/echo spacing. i.e. 650e-6 for 650 microseconds.
-                    "--unwarpdir=___"]) # EPI phase encoding direction - x,x-,y,y-,z,z-.
-         fslProcB = Popen(["topup", "--imain="all_my_b0_images.nii,
-                    "--datain="acquisition_parameters.txt,
-                    "--config="b02b0.cnf,
-                    "--out="my_output])
+                    "--dwell=620e-6",      # EPI dwell time/echo spacing. i.e. 650e-6 for 650 microseconds.
+                    "--unwarpdir=___"]) # EPI phase encoding direction - x,x-,y,y-,z,z-. (default = y)
+
          """
 
 
@@ -117,20 +216,31 @@ def main():
    
    parser.add_option ("-a", "--afni",     action="store_true", dest="software", default=True,
                                           help="DEFAULT, runs distortion correction using AFNI")
-   parser.add_option ("-f", "--fsl",      action="store_false", dest="software",
+   parser.add_option ("-f", "--fsl",      action="store_false", dest="software", default=True,
                                           help="Alternative to -a, runs distortion correction using FSL")
    
-   parser.add_option ("-b", "--B0Fmaps",  action="store_true", dest="scan", default=True,
-                                          help="DEFAULT, inputs Field Maps")
-   parser.add_option ("-e", "--epiFmaps", action="store_true", dest="scan",
-                                          help="Alternative to -b, inputs BlipUpDown Epi Scans")
+   parser.add_option ("-e", "--epiFmaps", action="store_true", dest="scan", default=True,
+                                          help="DEFAULT, inputs are Reverse Blip Epi Scans")
+   parser.add_option ("-b", "--B0Fmaps",  action="store_false", dest="scan", default=True,
+                                          help="Alternative to -e, inputs are B0 Field Maps")
 
-   options, args = parser.parse_args()
+   (options, args) = parser.parse_args()
 
    bidsDict = bidsToolsFS().buildBIDSDict(options.dataDir)
 
-   afniBlipUpDown (options.dataDir, bidsDict)
-   
+   if (options.software and options.scan):
+      print "Starting distortion correction using AFNI's BLIP-UP/DOWN TOOLS"
+      afniBlipUpDown (options.dataDir, bidsDict)
+
+   if (options.software and not options.scan):
+      print "Coming soon attractions ... distortion correction featuring AFNI's B0 FIELD MAP TOOLS"
+
+   if (not options.software and options.scan):
+      print "Starting distortion correction using FSL's TOPUP"
+      fslBlipUpDown (options.dataDir, bidsDict)
+
+   if (not options.software and not options.scan):
+      print "Coming soon attractions ... distortion correction starring FSL's FUGUE"
 
    
 if __name__ == '__main__':
