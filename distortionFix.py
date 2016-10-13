@@ -9,11 +9,12 @@ from   bidsFSUtils import bidsToolsFS
 
 def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 
-   t1wRunKey = "T1w"
-   restRunKey = "dir-y_run"
+   t1wRunKey     = "T1w"
+   epiRunKey     = "dir-y_run"
+   blipForRunKey = "dir-y_run"
    blipRevRunKey = "dir-y-_run"
-   magRunKey = "magnitude"
-   freqRunKey = "frequency"
+   magRunKey     = "magnitude"
+   freqRunKey    = "frequency"
    dataNeedingGiantMove = ["",""] # Enter subject IDs that need giant_move
 
    for eachSubject in bidsSubjectDict.keys():
@@ -26,40 +27,46 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
          else:
             sessLoc = subjLoc + eachSession + "/"
 
+         epiDsets = ""
+
          for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
             scanTypeLoc = sessLoc + eachScanType + "/"
 
             for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
+
                runLoc = scanTypeLoc + eachRun
+
                if t1wRunKey in runLoc:
                   anatOrig = runLoc + "+orig"
-               elif restRunKey in runLoc: # For this analysis we use the resting/task
-		                          # for the forward calibration scan. Not
-		                          # always going to be the case.
-                  blipForHead = runLoc + '+orig.HEAD[1]'
-                  # Make copy of volume 0 of EPI time series to original location so it can
-                  # be found by afni_proc.py.  Testing distortion correction and alignment
-                  # with a single volume for now.
-                  restDset = scanTypeLoc + 'data2Fix'
-                  restDsetCopyCmd = "3dTcat -prefix " + restDset + " " + runLoc + "+orig[0]"
-                  os.system (restDsetCopyCmd)
-               elif blipRevRunKey in runLoc:
-                  blipRevHead = runLoc + '+orig.HEAD[1]'
-               # elif magRunKey in runLoc:
+
+               # if epiRunKey in runLoc:
+               if blipForRunKey in runLoc:
+                  epiDsets = scanTypeLoc + 'data2Fix'
+                  epiDsetCopyCmd = "3dTcat -prefix " + epiDsets + " " + runLoc + "+orig[0..9]"
+                  os.system (epiDsetCopyCmd)
+
+               if blipForRunKey in runLoc:
+                  blipForHead = runLoc + '+orig.HEAD[0..14]'
+                  # blipForHead = runLoc + '+orig.HEAD[1]' # For data with low contrast in time series
+
+               if blipRevRunKey in runLoc:
+                  blipRevHead = runLoc + '+orig.HEAD'
+                  # blipRevHead = runLoc + '+orig.HEAD[1]' # For data with low contrast in time series
+
+               # if magRunKey in runLoc:
                #    magOrig = runLoc + "+orig"
-               # elif freqRunKey in runLoc:
+
+               # if freqRunKey in runLoc:
                #    freqOrig = runLoc + "+orig"
-               else:
-                  pass
 
          if eachSubject in dataNeedingGiantMove:
             giantMoveOption = "-giant_move"
          else:
             giantMoveOption = ""
 
-         afniSubProc = ["afni_proc.py", "-subj_id", eachSubject,
+         afniSubProc = ["afni_proc.py", "-subj_id", eachSubject + "-" + eachSession,
                         "-copy_anat", anatOrig,
-                        "-dsets", restDset + "+orig",
+                        "-dsets", epiDsets + "+orig",
                         "-blocks", "align",
                         "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveOption,
                         "-blip_reverse_dset", blipRevHead,
@@ -70,13 +77,14 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
          # of collected data.
          afniPreProc = Popen(afniSubProc, stdout=PIPE, stderr=PIPE)
 
+
+
 def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 
-   t1wRunKey = "T1w"
-   restRunKey = "dir-y_run"
+   t1wRunKey     = "T1w"
+   epiRunKey     = "dir-y_run"
+   blipForRunKey = "dir-y_run"
    blipRevRunKey = "dir-y-_run"
-   magRunKey = "magnitude"
-   freqRunKey = "frequency"
    dataNeedingGiantMove = ["",""] # Enter subject IDs that need giant_move
 
    for eachSubject in bidsSubjectDict.keys():
@@ -96,19 +104,15 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                runLoc = scanTypeLoc + eachRun
                if t1wRunKey in runLoc:
                   anatOrig = runLoc + "+orig"
-               elif restRunKey in runLoc: # For this analysis we use the resting/task
-		                          # for the forward calibration scan. Not
-		                          # always going to be the case.
+               elif epiRunKey in runLoc: # For this analysis we use the resting/task
+		                         # for the forward calibration scan. Not
+		                         # always going to be the case.
                   blipRest = runLoc + '+orig[0..29]'
                   restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubject + ".nii.gz" + " " + blipRest
                   os.system (restDsetCopyCmd)
                   blipFor = runLoc + '+orig[1]'
                elif blipRevRunKey in runLoc:
                   blipRev = runLoc + '+orig[1]'
-               # elif magRunKey in runLoc:
-               #    magOrig = runLoc + "+orig"
-               # elif freqRunKey in runLoc:
-               #    freqOrig = runLoc + "+orig"
                else:
                   pass
 
@@ -225,6 +229,9 @@ def main():
                                           help="Alternative to -e, inputs are B0 Field Maps")
 
    (options, args) = parser.parse_args()
+
+   if ( str(options.dataDir)[-1] != "/" ):
+      options.dataDir = str(options.dataDir) + "/"
 
    bidsDict = bidsToolsFS().buildBIDSDict(options.dataDir)
 
