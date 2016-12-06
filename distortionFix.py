@@ -77,18 +77,13 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                # if freqRunKey in runLoc:
                #    freqOrig = runLoc + "+orig"
 
-         afniSubProc = ["afni_proc.py", "-subj_id", eachSubject + "-" + eachSession,
+         executeAndWait(["afni_proc.py", "-subj_id", eachSubject + "-" + eachSession,
                         "-copy_anat", anatOrig,
                         "-dsets", epiDsets + "+orig",
                         "-blocks", "align",
                         "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubject],
                         "-blip_reverse_dset", blipRevHead,
-                        "-blip_forward_dset", blipForHead
-                        ]
-
-         # Run afni_proc.py to generate the analysis tcsh script for each session
-         # of collected data.
-         afniPreProc = Popen(afniSubProc, stdout=PIPE, stderr=PIPE)
+                        "-blip_forward_dset", blipForHead])
 
 
 
@@ -177,7 +172,7 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict):
          # moveDestInput = eachSubject + ".results/"
          # moveFilesInput = "*?" + eachSubject + "*"
          # os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
-	 print str(eachSubject) + " completed."
+	 print str(eachSubject) + " completed"
 
 
 
@@ -230,8 +225,7 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
          warpresInput = "--warpres=" + warpRes
          print "Step 1: Running topup on " + str(eachSubject)
          executeAndWait(["topup", imainInputA, datainInputA, outInputA,
-                           configInput], stdout=PIPE, stderr=PIPE)
-         fslProcA.wait()
+                           configInput])
 
          # When topup completes, gather inputs and execute applytopup command
          # This will generate distortion-corrected EPIs using the warp field
@@ -244,27 +238,20 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
          outInputB = "--out=epiFixed-" + eachSubject
          methodInput = "--method=jac"
          print "Step 2: Running applytopup on " + str(eachSubject)
-         fslProcB = Popen(["applytopup", imainInputB, inindexInput,
+         executeAndWait(["applytopup", imainInputB, inindexInput,
                            datainInputB, topupInput, interpInput, outInputB,
-                           methodInput], stdout=PIPE, stderr=PIPE)
-         fslProcB.wait()
+                           methodInput])
 
          # When applytopup completes, gather inputs and execute afni_proc.py command.
          # This is to align the anatomical scan to the FSL output EPIs.
-         dsetsInput = "restCorrected-" + eachSubject + ".nii.gz"
+         dsetsInput = "epiFixed-" + eachSubject + ".nii.gz"
          print "Step 3: Running afni_proc.py on " + str(eachSubject)
-         afniSubProc = ["afni_proc.py", "-subj_id", eachSubject,
+         executeAndWait(["afni_proc.py", "-subj_id", eachSubject,
                         "-copy_anat", anatOrig,
                         "-dsets", dsetsInput,
                         "-blocks", "align",
                         "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubject],
-                        "-execute"
-                        ]
-
-         # Run afni_proc.py to generate the analysis tcsh script for each session
-         # of collected data.
-         afniPreProc = Popen(afniSubProc, stdout=PIPE, stderr=PIPE)
-         afniPreProc.wait()
+                        "-execute"])
 
          # Move files created by topup and applytopup to subject's results folder
          # that was created after AFNI alignment
@@ -343,8 +330,8 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict):
          executeAndWait(["fugue", "-i", "rest-" + eachSubject, "--dwell=310e-6",
 	                "--loadfmap=fmapInRPSMasked-" + eachSubject + defaultExt,
 	                "-u", "epiFixed-" + eachSubject, "--unwarpdir=" + distDict[eachSubject],
-	                "--savefmap=" + "fmapSmoothedPoly5-" + eachSubject,
-                        "--poly=5"])
+	                "--savefmap=" + "fmapSmooth3_2-" + eachSubject,
+                        "--smooth3=2"])
 	 print "Fugue completed for " + str(eachSubject)
 
          # Step 2c. When fugue completes, gather inputs and execute afni_proc.py command.
@@ -357,7 +344,7 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict):
                         "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubject],
                         "-Allineate_opts", "-warp", "shift_rotate", # to avoid changing shape of brain to match fixed or original
                                                                     # echo planar images.  Potentially apply to _ALL_ correction
-								    # schemes (blip-up/down included)
+                                                                    # schemes (blip-up/down included)
                         "-execute"])
 
          # Move files created by fugue to subject's results folder.
