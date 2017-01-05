@@ -1,68 +1,103 @@
 
-# # Labels for PDN data
-# set anatMatchString0 = "RAGE"
-# set funcMatchString0 = "EPI"
-# set funcMatchString1 = "8min"
-# set fmapMatchString0 = "B0"
-# set  dtiMatchString0 = "DTI"
-
-# Labels for X-scanner data
+# Labels for UMD study using PDN data
 set anatMatchString0 = "RAGE"
 set anatMatchString1 = "T2"
-set funcMatchString0 = "3mm_iso"
-set funcMatchString1 = "cal"
+set anatMatchString2 = "PD"
+set funcMatchString0 = "EPI"
+set funcMatchString1 = "8min"
 set fmapMatchString0 = "B0"
 set fmapMatchString1 = ""
-set  dtiMatchString0 = "DTI"
+# set  dtiMatchString0 = "DTI"
+set otherMatchString0 = "tr64_6fa14" # mcdespotspgr scan
+set otherMatchString1 = "asset" # asset calibration scan
 
-### For final run ###
-set patientFolders = `find . -maxdepth 1 -mindepth 1 -type d`
+# Rename all files with .gz extension to .tgz extension
+set renameZips = `find . -mindepth 1 -maxdepth 1 -type f -name "*.gz"`
+foreach renameZip ( $renameZips )
+   set fileName = `echo $renameZip | cut -d "." -f2 | cut -d "/" -f2`
+   mv $fileName".gz" $fileName".tgz"
+end
 
-# echo List of patient folders is: $patientFolders
+# Locate all zip files. Note, PDN data are zipped by session
+set subjectZips = `find . -mindepth 1 -maxdepth 1 -type f -name "*.tgz"`
 
-foreach patientDir ($patientFolders)
-   # echo Entering patient folder $patientDir
-   cd $patientDir
+# Build list of zip files by appending subFolderList with subject IDs
+set subFolderList = ""
+foreach subjectZip ( $subjectZips )
+   set subjectFolder = `echo $subjectZip | cut -d "-" -f2`
+   set subFolderList = ( $subFolderList $subjectFolder )
+end
 
-   # Get list of all files to be unpacked.
-   set scanArchiveList = `ls *.tgz`
+# Find and exclude duplicate subject IDs from subFolderList
+set sortedSubList = `echo $subFolderList | tr " " "\n" | sort -u | tr "\n" " "`
 
-   if ("$scanArchiveList" == "") then
-      echo No archive files found in $patientDir.  Moving to next folder.
+# Create folder for each subject and add the respective session files
+foreach sortedSub ( $sortedSubList )
+   mkdir sub-$sortedSub
+   mv *"-"$sortedSub"-"*".tgz" sub-$sortedSub
+end
+
+# Find all newly created BIDS-compliant subject-level folders
+set subBIDSFolders = `find . -maxdepth 1 -mindepth 1 -type d`
+
+# Find and unpack all zipped session files
+foreach subjDir ( $subBIDSFolders )
+   # echo Entering subject $subjDir folder
+   cd $subjDir
+
+   # Get list of session files to be unpacked
+   set sessionArchiveList = `ls *.tgz`
+   set sessionFolderList = ""
+
+   # Make session-level BIDS folders for each session file and build a
+   # list of sessions to organize to BIDS-compliant scan type folders
+   if ( "$sessionArchiveList" == "" ) then
+      echo No archive files found in $subjDir.  Moving to next folder.
    else
-      # Make subject top-level BIDS folder
-      set subjectID = sub-`echo $patientDir | cut -d "/" -f2`
-      mkdir $subjectID
-      cd $subjectID
-      set subjectBIDSTopDir = `pwd`
-      cd ..
+      foreach sessionArchive ( $sessionArchiveList )
+         set sessionDir = `echo $sessionArchive | cut -d "-" -f4`
+         mkdir ses-$sessionDir
+	 mv *"-"$sessionDir"-"*".tgz" ses-$sessionDir
+	 set sessionFolderList = ( $sessionFolderList ses-$sessionDir )
+      end
    endif
 
-   # echo Unpacking archive $scanArchiveList
-   foreach patientSessionArchive ($scanArchiveList)
-      # echo Unpacking session $patientSessionArchive
-      echo "Archive found. Unpacking ..."
-      tar xfz $patientSessionArchive
+   # Unpack session files
+   foreach sesDir ( $sessionFolderList )
+      cd $sesDir
+      tar xfz *.tgz
+      cd ..
    end
 
-   echo "Done unpacking archives. Now organizing into BIDS folders."
+   # Get list of newly unpacked session folders
+   set sesFolders = `find . -maxdepth 1 -mindepth 1 -type d`
 
-   set sessionFolders = `find . -maxdepth 2 -mindepth 2 -type d`
-
-   foreach session ($sessionFolders)
+   # The following will create the BIDS-formatted scan type directories.
+   # It will also convert dicom files to AFNI files (non-BIDS) and move
+   # those files to their respective BIDS directory
+   foreach session ( $sesFolders )
       pushd .
       cd $session
+      set sesBIDSTopDir = `pwd`
+      
+      # Set subject ID and session ID to use for naming BIDS-compliant scan files
+      set subjectID = `ls *.tgz | cut -d "-" -f2`
+      set sessionID = `ls *.tgz | cut -d "-" -f4`
 
-      ### Locate Scans of Interest ###
+      # Locate Scans of Interest
       set scanFolders = `find . -maxdepth 4 -mindepth 1 -type d -name "mr*"`
       
-      ### Counters for each type of data being organized to BIDS ###
-      set countAnatDatasets = 1
-      set countRestDatasets = 1
-      set countB0MagDatasets = 1
-      set countB0FreqDatasets = 1
-      set countOppEpiDatasets = 1
-      set countDTIDatasets = 1
+      # Set counters for each type of scan being organized to BIDS
+      set countAnatMatch0 = 1
+      set countAnatMatch1 = 1
+      set countAnatMatch2 = 1
+      set countFuncMatch0 = 1
+      set countFuncMatch1 = 1
+      set countFmapMatch0 = 1
+      set countFmapMatch1 = 1
+      # set countDTIMatch0 = 1
+      set countOtherMatch0 = 1
+      set countOtherMatch1 = 1
 
       foreach folder ( $scanFolders )
          set referenceFile = `ls -1 $folder/*.dcm | head -1`
@@ -73,60 +108,80 @@ foreach patientDir ($patientFolders)
          if ($?) then
             : # echo Folder $folder does not contain MP-RAGE data.
          else
-            set printAnat=`printf "%02d" $countAnatDatasets`
-            if (! -d $subjectBIDSTopDir/anat) then
-               # echo CREATING DIRECTORY $subjectBIDSTopDir/anat
-               mkdir -p $subjectBIDSTopDir/anat
+            set printAnat0=`printf "%02d" $countAnatMatch0`
+            if (! -d $sesBIDSTopDir/anat) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/anat
+               mkdir -p $sesBIDSTopDir/anat
             # else
-               # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/anat
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
             endif
-            set datasetPrefix = $subjectID\_run-$printAnat\_T1w
+            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printAnat0\_T1w
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-            mv $datasetPrefix* $subjectBIDSTopDir/anat
-            set countAnatDatasets = `expr $countAnatDatasets + 1`
+            mv $datasetPrefix* $sesBIDSTopDir/anat
+            set countAnatMatch0 = `expr $countAnatMatch0 + 1`
             continue
          endif
 
          ### Locate T2 data ###
          echo $seriesDescription | grep -iq $anatMatchString1
          if ($?) then
-            : # echo Folder $folder does not contain MP-RAGE data.
+            : # echo Folder $folder does not contain T2 data.
          else
-            set printAnat=`printf "%02d" $countAnatDatasets`
-            if (! -d $subjectBIDSTopDir/anat) then
-               # echo CREATING DIRECTORY $subjectBIDSTopDir/anat
-               mkdir -p $subjectBIDSTopDir/anat
+            set printAnat1=`printf "%02d" $countAnatMatch1`
+            if (! -d $sesBIDSTopDir/anat) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/anat
+               mkdir -p $sesBIDSTopDir/anat
             # else
-               # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/anat
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
             endif
-            set datasetPrefix = $subjectID\_run-$printAnat\_T2w
+            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printAnat1\_T2w
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-            mv $datasetPrefix* $subjectBIDSTopDir/anat
-            set countAnatDatasets = `expr $countAnatDatasets + 1`
+            mv $datasetPrefix* $sesBIDSTopDir/anat
+            set countAnatMatch1 = `expr $countAnatMatch1 + 1`
+            continue
+         endif
+	 
+	 ### Locate Proton Density data ###
+         echo $seriesDescription | grep -iq $anatMatchString2
+         if ($?) then
+            : # echo Folder $folder does not contain PD data.
+         else
+            set printAnat2=`printf "%02d" $countAnatMatch2`
+            if (! -d $sesBIDSTopDir/anat) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/anat
+               mkdir -p $sesBIDSTopDir/anat
+            # else
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
+            endif
+            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printAnat2\_PD
+            Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+            mv $datasetPrefix* $sesBIDSTopDir/anat
+            set countAnatMatch2 = `expr $countAnatMatch2 + 1`
             continue
          endif
 
          ### Locate DTI data ###
-         echo $seriesDescription | grep -iq $dtiMatchString0
-         if ($?) then
-            : # echo Folder $folder does not contain MP-RAGE data.
-         else
-            set printAnat=`printf "%02d" $countDTIDatasets`
-            if (! -d $subjectBIDSTopDir/dwi) then
-               # echo CREATING DIRECTORY $subjectBIDSTopDir/anat
-               mkdir -p $subjectBIDSTopDir/dwi
-            # else
-               # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/anat
-            endif
-            set datasetPrefix = $subjectID\_run-$printAnat\_dwi
-            Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-            mv $datasetPrefix* $subjectBIDSTopDir/dwi
-            set countDTIDatasets = `expr $countDTIDatasets + 1`
-            continue
-         endif
+         # echo $seriesDescription | grep -iq $dtiMatchString0
+         # if ($?) then
+         #    : # echo Folder $folder does not contain MP-RAGE data.
+         # else
+         #    set printDTI0=`printf "%02d" $countDTIMatch0`
+         #    if (! -d $sesBIDSTopDir/dwi) then
+         #       # echo CREATING DIRECTORY $sesBIDSTopDir/anat
+         #       mkdir -p $sesBIDSTopDir/dwi
+         #    # else
+         #       # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
+         #    endif
+         #    set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printDTI0\_dwi
+         #    Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+         #          -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+         #    mv $datasetPrefix* $sesBIDSTopDir/dwi
+         #    set countDTIMatch0 = `expr $countDTIMatch0 + 1`
+         #    continue
+         # endif
 
          ### Locate EPI data ###
          echo $seriesDescription | grep -iq $funcMatchString0
@@ -135,31 +190,31 @@ foreach patientDir ($patientFolders)
          else
             echo $seriesDescription | grep -iq $funcMatchString1
             if ($?) then
-               if (! -d $subjectBIDSTopDir/func) then
-                  # echo CREATING DIRECTORY $subjectBIDSTopDir/func
-                  mkdir -p $subjectBIDSTopDir/func
+               if (! -d $sesBIDSTopDir/func) then
+                  # echo CREATING DIRECTORY $sesBIDSTopDir/func
+                  mkdir -p $sesBIDSTopDir/func
                # else
-                  # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/func
+                  # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/func
                endif
-               set printRest=`printf "%02d" $countRestDatasets`
-               set datasetPrefix = $subjectID\_dir-y_run-$printRest\_epi
+               set printFunc0=`printf "%02d" $countFuncMatch0`
+               set datasetPrefix = $subjectID\_ses-$sessionID\_dir-y_run-$printFunc0\_epi
                Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                      -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-               mv $datasetPrefix* $subjectBIDSTopDir/func
-               set countRestDatasets = `expr $countRestDatasets + 1`
+               mv $datasetPrefix* $sesBIDSTopDir/func
+               set countFuncMatch0 = `expr $countFuncMatch0 + 1`
             else
-               if (! -d $subjectBIDSTopDir/fmap) then
-                  # echo CREATING DIRECTORY $subjectBIDSTopDir/fmap
-                  mkdir -p $subjectBIDSTopDir/fmap
+               if (! -d $sesBIDSTopDir/fmap) then
+                  # echo CREATING DIRECTORY $sesBIDSTopDir/fmap
+                  mkdir -p $sesBIDSTopDir/fmap
                # else
-                  # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/fmap
+                  # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/fmap
                endif
-               set printOppEpi=`printf "%02d" $countOppEpiDatasets`
-               set datasetPrefix = $subjectID\_dir-y-_run-$printOppEpi\_epi
+               set printFunc1=`printf "%02d" $countFuncMatch1`
+               set datasetPrefix = $subjectID\_ses-$sessionID\_dir-y-_run-$printFunc1\_epi
                Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                      -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-               mv $datasetPrefix* $subjectBIDSTopDir/fmap
-               set countOppEpiDatasets = `expr $countOppEpiDatasets + 1`
+               mv $datasetPrefix* $sesBIDSTopDir/fmap
+               set countFuncMatch1 = `expr $countFuncMatch1 + 1`
             endif
             continue
          endif
@@ -169,40 +224,113 @@ foreach patientDir ($patientFolders)
          if ($?) then
             : # echo Folder $folder does not contain B0 data.
          else
-            if (! -d $subjectBIDSTopDir/fmap) then
-               # echo CREATING DIRECTORY $subjectBIDSTopDir/fmap
-               mkdir -p $subjectBIDSTopDir/fmap
+            if (! -d $sesBIDSTopDir/fmap) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/fmap
+               mkdir -p $sesBIDSTopDir/fmap
             # else
-               # echo DIRECTORY ALREADY EXISTS FOR $subjectBIDSTopDir/fmap
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/fmap
             endif
             set seriesNumber = `dicom_hdr $referenceFile | grep -i "Series Number" | cut -d"/" -f5`
 
             if ($seriesNumber =~ *0) then
-               set printB0=`printf "%02d" $countB0MagDatasets`
-               set datasetPrefix = $subjectID\_run-$printB0\_magnitude
-               set countB0MagDatasets = `expr $countB0MagDatasets + 1`
+               set printFmap0=`printf "%02d" $countFmapMatch0`
+               set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printFmap0\_magnitude
+               set countFmapMatch0 = `expr $countFmapMatch0 + 1`
             else
-               set printB0=`printf "%02d" $countB0FreqDatasets`
-               set datasetPrefix = $subjectID\_run-$printB0\_frequency
-               set countB0FreqDatasets = `expr $countB0FreqDatasets + 1`
+               set printFmap1=`printf "%02d" $countFmapMatch1`
+               set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printFmap1\_frequency
+               set countFmapMatch1 = `expr $countFmapMatch1 + 1`
             endif
 
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-            mv $datasetPrefix* $subjectBIDSTopDir/fmap
+            mv $datasetPrefix* $sesBIDSTopDir/fmap
 
+         endif
+	 
+	 ### Locate mcDESPOT data ###
+         echo $seriesDescription | grep -iq $otherMatchString0
+         if ($?) then
+            : # echo Folder $folder does not contain mcDESPOT data.
+         else
+            set printOther0=`printf "%02d" $countOtherMatch0`
+            if (! -d $sesBIDSTopDir/other) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/other
+               mkdir -p $sesBIDSTopDir/other
+            # else
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/other
+            endif
+            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printOther0\_mcdespot-tr64-6fa14
+            Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+            mv $datasetPrefix* $sesBIDSTopDir/other
+            set countOtherMatch0 = `expr $countOtherMatch0 + 1`
+            continue
+         endif
+	 
+	 ### Locate ASSET Calibration data ###
+         echo $seriesDescription | grep -iq $otherMatchString1
+         if ($?) then
+            : # echo Folder $folder does not contain ASSET data.
+         else
+            set printOther1=`printf "%02d" $countOtherMatch1`
+            if (! -d $sesBIDSTopDir/other) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/other
+               mkdir -p $sesBIDSTopDir/other
+            # else
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/other
+            endif
+            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printOther1\_asset
+            Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+            mv $datasetPrefix* $sesBIDSTopDir/other
+            set countOtherMatch1 = `expr $countOtherMatch1 + 1`
+            continue
          endif
 
       # echo END OF LOOP within $folder
       end
 
-      ### Return to directory location stored in "pushd" above ###
+      # Return to subject-level directory location stored in "pushd" above
       popd
-      # echo Script location 4, at `pwd`
 
+   # echo END OF LOOP within $session
    end
-   # echo Leaving patient folder $patientDir
+
+   # Return to 
    cd ..
 
+# echo END OF LOOP within $subjDir
 end
 
+# Remove original .tgz files and all unpacked non-BIDS directories and files
+mkdir rmThisDirWhenDone
+set zipList = `find . -mindepth 1 -maxdepth 3 -type f -name "*.tgz"`
+
+foreach zipItem ( $zipList )
+   # Since data are extracted session-wise, session-level waste folders
+   # are created to store extraneous files prior to their removal
+   set subFolder = `echo $zipItem | cut -d "/" -f2`
+   set sesFolder = `echo $zipItem | cut -d "/" -f3`
+   mkdir rmThisDirWhenDone/rm-$sesFolder
+
+   set zipFile = `echo $zipItem | cut -d "/" -f4`
+   set unzippedFolder = `echo $zipFile | cut -d "-" -f1,2`
+
+   set rmList = ""
+   set dicomList = `find ./$subFolder/$sesFolder/ -mindepth 1 -maxdepth 2 -type f -name "GERT*"`
+   set dimonList = `find ./$subFolder/$sesFolder/ -mindepth 1 -maxdepth 2 -type f -name "dimon*"`
+   set rmList = ( $dicomList $dimonList )
+
+   echo Moving the following list to rmThisDirWhenDone/rm-$sesFolder
+   echo $zipItem
+   echo ./$subFolder/$sesFolder/$unzippedFolder
+   echo $rmList
+
+   mv -f $zipItem ./$subFolder/$sesFolder/$unzippedFolder $rmList rmThisDirWhenDone/rm-$sesFolder
+   
+end
+
+# Keep the following commented out, but remember to run the
+# remove command to delete files that are not BIDS-compliant
+# rm -rf rmThisDirWhenDone
