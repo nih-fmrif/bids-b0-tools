@@ -334,3 +334,14 @@ end
 # Keep the following commented out, but remember to run the
 # remove command to delete files that are not BIDS-compliant
 # rm -rf rmThisDirWhenDone
+
+# Anonymize AFNI file history by denoting with 3drefit
+set allScans = `find -maxdepth 2 -mindepth 5 -type f -name "*+orig.HEAD"`
+
+foreach scan ( $allScans )
+
+   set scanOrig = `echo $scan | cut -d "." -f1,2`
+   3drefit -denote $scanOrig
+   
+end
+
