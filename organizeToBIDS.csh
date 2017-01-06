@@ -1,7 +1,11 @@
 
+# Notice, PDN zipped data folders naming convention is
+# [LastName]_[FirstName]_[MiddleName]-[MRN]-[ScanDate(YYYYMMDD)]-[ScanID]-DICOM[.Extension]
+# Example... QUILL_PETER_JASON-31415926-20170125-61023-DICOM.tgz
+
 # Labels for UMD study using PDN data
 set anatMatchString0 = "RAGE"
-set anatMatchString1 = "T2"
+set anatMatchString1 = "_1_2mm" # T2 scans with 0.75x0.75x2.00mm voxels
 set anatMatchString2 = "PD"
 set funcMatchString0 = "EPI"
 set funcMatchString1 = "8min"
@@ -18,7 +22,7 @@ foreach renameZip ( $renameZips )
    mv $fileName".gz" $fileName".tgz"
 end
 
-# Locate all zip files. Note, PDN data are zipped by session
+# Locate all zip files
 set subjectZips = `find . -mindepth 1 -maxdepth 1 -type f -name "*.tgz"`
 
 # Build list of zip files by appending subFolderList with subject IDs
@@ -29,12 +33,15 @@ foreach subjectZip ( $subjectZips )
 end
 
 # Find and exclude duplicate subject IDs from subFolderList
-set sortedSubList = `echo $subFolderList | tr " " "\n" | sort -u | tr "\n" " "`
+set sortedSubList = `echo $subFolderList | tr " " "\n" | sort -du | tr "\n" " "`
 
 # Create folder for each subject and add the respective session files
+set subCount = 1
 foreach sortedSub ( $sortedSubList )
-   mkdir sub-$sortedSub
-   mv *"-"$sortedSub"-"*".tgz" sub-$sortedSub
+   set subNumber = `printf "%02d" $subCount`
+   mkdir sub-$subNumber
+   mv *"-"$sortedSub"-"*".tgz" sub-$subNumber
+   set subCount = `expr $subCount + 1`
 end
 
 # Find all newly created BIDS-compliant subject-level folders
@@ -45,22 +52,21 @@ foreach subjDir ( $subBIDSFolders )
    # echo Entering subject $subjDir folder
    cd $subjDir
 
-   # Get list of session files to be unpacked
-   set sessionArchiveList = `ls *.tgz`
+   # Get list of session files to be unpacked,
+   # and in order of first to last session
+   set sessionArchiveList = `ls *.tgz | fmt -1 | sort -d`
    set sessionFolderList = ""
+   set sessionCount = 1
 
    # Make session-level BIDS folders for each session file and build a
    # list of sessions to organize to BIDS-compliant scan type folders
-   if ( "$sessionArchiveList" == "" ) then
-      echo No archive files found in $subjDir.  Moving to next folder.
-   else
-      foreach sessionArchive ( $sessionArchiveList )
-         set sessionDir = `echo $sessionArchive | cut -d "-" -f4`
-         mkdir ses-$sessionDir
-	 mv *"-"$sessionDir"-"*".tgz" ses-$sessionDir
-	 set sessionFolderList = ( $sessionFolderList ses-$sessionDir )
-      end
-   endif
+   foreach sessionArchive ( $sessionArchiveList )
+      set sessionNumber = `printf "%02d" $sessionCount`
+      mkdir ses-$sessionNumber
+      mv $sessionArchive ses-$sessionNumber
+      set sessionFolderList = ( $sessionFolderList ses-$sessionNumber )
+      set sessionCount = `expr $sessionCount + 1`
+   end
 
    # Unpack session files
    foreach sesDir ( $sessionFolderList )
@@ -81,8 +87,8 @@ foreach subjDir ( $subBIDSFolders )
       set sesBIDSTopDir = `pwd`
       
       # Set subject ID and session ID to use for naming BIDS-compliant scan files
-      set subjectID = `ls *.tgz | cut -d "-" -f2`
-      set sessionID = `ls *.tgz | cut -d "-" -f4`
+      set subjectID = `echo $sesBIDSTopDir | rev | cut -d "/" -f2 | rev`
+      set sessionID = `echo $sesBIDSTopDir | rev | cut -d "/" -f1 | rev`
 
       # Locate Scans of Interest
       set scanFolders = `find . -maxdepth 4 -mindepth 1 -type d -name "mr*"`
@@ -115,7 +121,7 @@ foreach subjDir ( $subBIDSFolders )
             # else
                # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
             endif
-            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printAnat0\_T1w
+            set datasetPrefix = $subjectID\_$sessionID\_run-$printAnat0\_T1w
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/anat
@@ -135,7 +141,7 @@ foreach subjDir ( $subBIDSFolders )
             # else
                # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
             endif
-            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printAnat1\_T2w
+            set datasetPrefix = $subjectID\_$sessionID\_run-$printAnat1\_T2w
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/anat
@@ -155,7 +161,7 @@ foreach subjDir ( $subBIDSFolders )
             # else
                # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
             endif
-            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printAnat2\_PD
+            set datasetPrefix = $subjectID\_$sessionID\_run-$printAnat2\_PD
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/anat
@@ -175,7 +181,7 @@ foreach subjDir ( $subBIDSFolders )
          #    # else
          #       # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
          #    endif
-         #    set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printDTI0\_dwi
+         #    set datasetPrefix = $subjectID\_$sessionID\_run-$printDTI0\_dwi
          #    Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
          #          -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
          #    mv $datasetPrefix* $sesBIDSTopDir/dwi
@@ -197,7 +203,7 @@ foreach subjDir ( $subBIDSFolders )
                   # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/func
                endif
                set printFunc0=`printf "%02d" $countFuncMatch0`
-               set datasetPrefix = $subjectID\_ses-$sessionID\_dir-y_run-$printFunc0\_epi
+               set datasetPrefix = $subjectID\_$sessionID\_dir-y_run-$printFunc0\_epi
                Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                      -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
                mv $datasetPrefix* $sesBIDSTopDir/func
@@ -210,7 +216,7 @@ foreach subjDir ( $subBIDSFolders )
                   # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/fmap
                endif
                set printFunc1=`printf "%02d" $countFuncMatch1`
-               set datasetPrefix = $subjectID\_ses-$sessionID\_dir-y-_run-$printFunc1\_epi
+               set datasetPrefix = $subjectID\_$sessionID\_dir-y-_run-$printFunc1\_epi
                Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                      -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
                mv $datasetPrefix* $sesBIDSTopDir/fmap
@@ -234,11 +240,11 @@ foreach subjDir ( $subBIDSFolders )
 
             if ($seriesNumber =~ *0) then
                set printFmap0=`printf "%02d" $countFmapMatch0`
-               set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printFmap0\_magnitude
+               set datasetPrefix = $subjectID\_$sessionID\_run-$printFmap0\_magnitude
                set countFmapMatch0 = `expr $countFmapMatch0 + 1`
             else
                set printFmap1=`printf "%02d" $countFmapMatch1`
-               set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printFmap1\_frequency
+               set datasetPrefix = $subjectID\_$sessionID\_run-$printFmap1\_frequency
                set countFmapMatch1 = `expr $countFmapMatch1 + 1`
             endif
 
@@ -260,7 +266,7 @@ foreach subjDir ( $subBIDSFolders )
             # else
                # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/other
             endif
-            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printOther0\_mcdespot-tr64-6fa14
+            set datasetPrefix = $subjectID\_$sessionID\_run-$printOther0\_mcdespot-tr64-6fa14
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/other
@@ -280,7 +286,7 @@ foreach subjDir ( $subBIDSFolders )
             # else
                # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/other
             endif
-            set datasetPrefix = $subjectID\_ses-$sessionID\_run-$printOther1\_asset
+            set datasetPrefix = $subjectID\_$sessionID\_run-$printOther1\_asset
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/other
