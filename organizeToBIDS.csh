@@ -3,7 +3,7 @@
 # [LastName]_[FirstName]_[MiddleName]-[MRN]-[ScanDate(YYYYMMDD)]-[ScanID]-DICOM[.Extension]
 # Example... QUILL_PETER_JASON-31415926-20170125-61023-DICOM.tgz
 
-# Labels for UMD study using PDN data
+# Labels for PDN data
 set anatMatchString0 = "RAGE"
 set anatMatchString1 = "_1_2mm" # T2 scans with 0.75x0.75x2.00mm voxels
 set anatMatchString2 = "PD"
@@ -14,6 +14,13 @@ set fmapMatchString1 = ""
 # set  dtiMatchString0 = "DTI"
 set otherMatchString0 = "tr64_6fa14" # mcdespotspgr scan
 set otherMatchString1 = "asset" # asset calibration scan
+
+# Store top level directory location
+set topDir = `pwd`
+
+# Create text file for tracking file name conversion information
+echo `date` >>! $topDir/fileTrackerBIDS.txt
+echo  SUBJECT_ID SCAN_DATE SESSION_ID BIDS_SUB/SES_DIRECTORY >>! $topDir/fileTrackerBIDS.txt
 
 # Rename all files with .gz extension to .tgz extension
 set renameZips = `find . -mindepth 1 -maxdepth 1 -type f -name "*.gz"`
@@ -66,6 +73,13 @@ foreach subjDir ( $subBIDSFolders )
       mv $sessionArchive ses-$sessionNumber
       set sessionFolderList = ( $sessionFolderList ses-$sessionNumber )
       set sessionCount = `expr $sessionCount + 1`
+      
+      # Gather subject and session information from archive file name
+      # then enter into fileTrackerBIDS.txt
+      set subjectField = `echo $sessionArchive | cut -d "-" -f2`
+      set dateField = `echo $sessionArchive | cut -d "-" -f3`
+      set sessionField = `echo $sessionArchive | cut -d "-" -f4`
+      echo $subjectField $dateField $sessionField $subjDir/ses-$sessionNumber >>! $topDir/fileTrackerBIDS.txt
    end
 
    # Unpack session files
@@ -337,9 +351,8 @@ foreach zipItem ( $zipList )
    
 end
 
-# Keep the following commented out, but remember to run the
-# remove command to delete files that are not BIDS-compliant
-# rm -rf rmThisDirWhenDone
+# Remove files that are not BIDS-compliant
+rm -rf rmThisDirWhenDone
 
 # Anonymize AFNI file history by denoting with 3drefit
 set allScans = `find -maxdepth 2 -mindepth 5 -type f -name "*+orig.HEAD"`
