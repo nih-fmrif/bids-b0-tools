@@ -20,9 +20,6 @@ matching scans inside each folder.
 Limits of organizeToBIDS.csh:
 -----------------------------
 
-* This does not currently handle multiple sessions of data for a single
-subject, but should be eventually updated to handle such cases.
-
 * It also does not generate the auxiliary JSON metadata files.
 
 * Finally, this script outputs AFNI format (.HEAD/.BRIK) data sets.  To
