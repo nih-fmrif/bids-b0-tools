@@ -34,7 +34,8 @@ foreach subDir ( $subDirs )
          : # echo $subDir does not contain $eachBIDS scans
       else
          # echo $subDir contains $eachBIDS scans
-         set nScans = `ls -R -1 $subDir | grep -c ".*"$eachBIDS".*+orig.HEAD"`
+         set nScans = `ls -R -1 $subDir | grep -c ".*"$eachBIDS".*.nii"`
+         # set nScans = `ls -R -1 $subDir | grep -c ".*"$eachBIDS".*+orig.HEAD"`
 	 
       endif
       
@@ -70,7 +71,8 @@ foreach subDir ( $subDirs )
             : # echo $sesDir does not contain $eachBIDS scans
          else
             # echo $sesDir contains $eachBIDS scans
-            set mScans = `ls -R -1 $sesDir | grep -c ".*"$eachBIDS".*+orig.HEAD"`
+            set mScans = `ls -R -1 $sesDir | grep -c ".*"$eachBIDS".*.nii"`
+            # set mScans = `ls -R -1 $sesDir | grep -c ".*"$eachBIDS".*+orig.HEAD"`
 
          endif
 

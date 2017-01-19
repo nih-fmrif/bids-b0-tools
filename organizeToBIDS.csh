@@ -92,9 +92,10 @@ foreach subjDir ( $subBIDSFolders )
    # Get list of newly unpacked session folders
    set sesFolders = `find . -maxdepth 1 -mindepth 1 -type d`
 
-   # The following will create the BIDS-formatted scan type directories.
-   # It will also convert dicom files to AFNI files (non-BIDS) and move
-   # those files to their respective BIDS directory
+   # The following will create the BIDS-formatted scan type directories after
+   # converting original DICOM files to NIFTI. It will then move those files to
+   # their respective BIDS directory. To create AFNI datasets instead of NIFTI,
+   # remove the '-gert_write_as_nifti' option from the Dimon commands. 
    foreach session ( $sesFolders )
       pushd .
       cd $session
@@ -137,7 +138,7 @@ foreach subjDir ( $subBIDSFolders )
             endif
             set datasetPrefix = $subjectID\_$sessionID\_run-$printAnat0\_T1w
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+                  -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/anat
             set countAnatMatch0 = `expr $countAnatMatch0 + 1`
             continue
@@ -157,7 +158,7 @@ foreach subjDir ( $subBIDSFolders )
             endif
             set datasetPrefix = $subjectID\_$sessionID\_run-$printAnat1\_T2w
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+                  -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/anat
             set countAnatMatch1 = `expr $countAnatMatch1 + 1`
             continue
@@ -177,7 +178,7 @@ foreach subjDir ( $subBIDSFolders )
             endif
             set datasetPrefix = $subjectID\_$sessionID\_run-$printAnat2\_PD
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+                  -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/anat
             set countAnatMatch2 = `expr $countAnatMatch2 + 1`
             continue
@@ -197,7 +198,7 @@ foreach subjDir ( $subBIDSFolders )
          #    endif
          #    set datasetPrefix = $subjectID\_$sessionID\_run-$printDTI0\_dwi
          #    Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-         #          -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+         #          -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
          #    mv $datasetPrefix* $sesBIDSTopDir/dwi
          #    set countDTIMatch0 = `expr $countDTIMatch0 + 1`
          #    continue
@@ -210,19 +211,6 @@ foreach subjDir ( $subBIDSFolders )
          else
             echo $seriesDescription | grep -iq $funcMatchString1
             if ($?) then
-               if (! -d $sesBIDSTopDir/func) then
-                  # echo CREATING DIRECTORY $sesBIDSTopDir/func
-                  mkdir -p $sesBIDSTopDir/func
-               # else
-                  # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/func
-               endif
-               set printFunc0=`printf "%02d" $countFuncMatch0`
-               set datasetPrefix = $subjectID\_$sessionID\_dir-y_run-$printFunc0\_epi
-               Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                     -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
-               mv $datasetPrefix* $sesBIDSTopDir/func
-               set countFuncMatch0 = `expr $countFuncMatch0 + 1`
-            else
                if (! -d $sesBIDSTopDir/fmap) then
                   # echo CREATING DIRECTORY $sesBIDSTopDir/fmap
                   mkdir -p $sesBIDSTopDir/fmap
@@ -232,9 +220,22 @@ foreach subjDir ( $subBIDSFolders )
                set printFunc1=`printf "%02d" $countFuncMatch1`
                set datasetPrefix = $subjectID\_$sessionID\_dir-y-_run-$printFunc1\_epi
                Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                     -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+                     -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
                mv $datasetPrefix* $sesBIDSTopDir/fmap
                set countFuncMatch1 = `expr $countFuncMatch1 + 1`
+            else
+               if (! -d $sesBIDSTopDir/func) then
+                  # echo CREATING DIRECTORY $sesBIDSTopDir/func
+                  mkdir -p $sesBIDSTopDir/func
+               # else
+                  # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/func
+               endif
+               set printFunc0=`printf "%02d" $countFuncMatch0`
+               set datasetPrefix = $subjectID\_$sessionID\_dir-y_run-$printFunc0\_epi
+               Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                     -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
+               mv $datasetPrefix* $sesBIDSTopDir/func
+               set countFuncMatch0 = `expr $countFuncMatch0 + 1`
             endif
             continue
          endif
@@ -250,7 +251,7 @@ foreach subjDir ( $subBIDSFolders )
             # else
                # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/fmap
             endif
-            set seriesNumber = `dicom_hdr $referenceFile | grep -i "Series Number" | cut -d"/" -f5`
+            set seriesNumber = `dicom_hdr $referenceFile | grep -i "Series Number" | cut -d "/" -f5`
 
             if ($seriesNumber =~ *0) then
                set printFmap0=`printf "%02d" $countFmapMatch0`
@@ -263,7 +264,7 @@ foreach subjDir ( $subBIDSFolders )
             endif
 
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+                  -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/fmap
 
          endif
@@ -282,7 +283,7 @@ foreach subjDir ( $subBIDSFolders )
             endif
             set datasetPrefix = $subjectID\_$sessionID\_run-$printOther0\_mcdespot-tr64-6fa14
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+                  -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/other
             set countOtherMatch0 = `expr $countOtherMatch0 + 1`
             continue
@@ -302,7 +303,7 @@ foreach subjDir ( $subBIDSFolders )
             endif
             set datasetPrefix = $subjectID\_$sessionID\_run-$printOther1\_asset
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                  -gert_quit_on_err -gert_to3d_prefix $datasetPrefix
+                  -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
             mv $datasetPrefix* $sesBIDSTopDir/other
             set countOtherMatch1 = `expr $countOtherMatch1 + 1`
             continue
@@ -354,13 +355,18 @@ end
 # Remove files that are not BIDS-compliant
 rm -rf rmThisDirWhenDone
 
+# Anonymize NIFTI file history by denoting with 3drefit
+set allScans = `find -mindepth 2 -maxdepth 5 -type f -name "*.nii"`
+
 # Anonymize AFNI file history by denoting with 3drefit
-set allScans = `find -maxdepth 2 -mindepth 5 -type f -name "*+orig.HEAD"`
+# set allScans = `find -mindepth 2 -maxdepth 5 -type f -name "*+orig.HEAD"`
 
 foreach scan ( $allScans )
 
-   set scanOrig = `echo $scan | cut -d "." -f1,2`
-   3drefit -denote $scanOrig
+   # set scanOrig = `echo $scan | cut -d "." -f1,2`
+   # 3drefit -denote $scanOrig
+
+   3drefit -denote $scan
    
 end
 
