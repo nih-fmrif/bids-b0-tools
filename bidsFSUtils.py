@@ -6,6 +6,7 @@ from   fs.opener import fsopendir, fsopen
 
 
 
+
 class bidsToolsFS:
    """
 
@@ -14,8 +15,13 @@ class bidsToolsFS:
    analysis.
 
    """
-
-
+   
+   defaultExt = ".nii"         # NIFTI should be default
+   defaultDelimiter = "."      # Default delimiter for BIDS/nii
+   
+   # defaultExt = "+orig"      # For AFNI datasets
+   # defaultDelimiter = "+"    # Default delimiter for AFNI
+   
    # def __init__(self):
       # print "Doing not much at all"
 
@@ -34,8 +40,7 @@ class bidsToolsFS:
          # Delimiter here for AFNI formatted data sets. For 
          # proper BIDS tree, would need other scheme, e.g.:
          #
-         # runRootName = eachRun.split(".")[0]
-         runRootName = eachRun.split("+")[0]
+         runRootName = eachRun.split(defaultDelimiter)[0]
          if runRootName not in runsList:
             runsList.append(runRootName)
 
