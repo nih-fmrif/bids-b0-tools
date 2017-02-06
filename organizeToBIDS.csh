@@ -1,17 +1,17 @@
 
 # Notice, PDN zipped data folders naming convention is
 # [LastName]_[FirstName]_[MiddleName]-[MRN]-[ScanDate(YYYYMMDD)]-[ScanID]-DICOM[.Extension]
-# Example... QUILL_PETER_JASON-31415926-20170125-61023-DICOM.tgz
+# Example... QUILL_PETER_JASON-31415926-19620204-61023-DICOM.tgz
 
 # Labels for PDN data
-set anatMatchString0 = "RAGE"
-set anatMatchString1 = "_1_2mm" # T2 scans with 0.75x0.75x2.00mm voxels
-set anatMatchString2 = "PD"
-set funcMatchString0 = "EPI"
-set funcMatchString1 = "8min"
-set fmapMatchString0 = "B0"
-set fmapMatchString1 = ""
-# set  dtiMatchString0 = "DTI"
+set anatMatchString0  = "RAGE"
+set anatMatchString1  = "_1_2mm" # T2 scans with 0.75x0.75x2.00mm voxels
+set anatMatchString2  = "PD"
+set funcMatchString0  = "EPI"
+set funcMatchString1  = "opposite"
+set fmapMatchString0  = "B0"
+set fmapMatchString1  = ""
+# set dtiMatchString0   = "DTI"
 set otherMatchString0 = "tr64_6fa14" # mcdespotspgr scan
 set otherMatchString1 = "asset" # asset calibration scan
 
@@ -116,7 +116,7 @@ foreach subjDir ( $subBIDSFolders )
       set countFuncMatch1 = 1
       set countFmapMatch0 = 1
       set countFmapMatch1 = 1
-      # set countDTIMatch0 = 1
+      set countDTIMatch0 = 1
       set countOtherMatch0 = 1
       set countOtherMatch1 = 1
 
@@ -193,7 +193,7 @@ foreach subjDir ( $subBIDSFolders )
          #    if (! -d $sesBIDSTopDir/dwi) then
          #       # echo CREATING DIRECTORY $sesBIDSTopDir/anat
          #       mkdir -p $sesBIDSTopDir/dwi
-         #    # else
+         #    else
          #       # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
          #    endif
          #    set datasetPrefix = $subjectID\_$sessionID\_run-$printDTI0\_dwi
@@ -209,33 +209,42 @@ foreach subjDir ( $subBIDSFolders )
          if ($?) then
             : # echo Folder $folder does not contain EPI data.
          else
+            set imgRows = `dicom_hdr $referenceFile | grep -i "IMG rows" | cut -d "/" -f5 | tr -d " "`
             echo $seriesDescription | grep -iq $funcMatchString1
             if ($?) then
-               if (! -d $sesBIDSTopDir/fmap) then
-                  # echo CREATING DIRECTORY $sesBIDSTopDir/fmap
-                  mkdir -p $sesBIDSTopDir/fmap
-               # else
-                  # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/fmap
+               if ( $imgRows != "96" ) then
+                  : # echo Folder $folder EPI data DOES NOT have 96 image rows
+               else
+                  if (! -d $sesBIDSTopDir/func) then
+                     # echo CREATING DIRECTORY $sesBIDSTopDir/func
+                     mkdir -p $sesBIDSTopDir/func
+                  # else
+                     # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/func
+                  endif
+                  set printFunc0=`printf "%02d" $countFuncMatch0`
+                  set datasetPrefix = $subjectID\_$sessionID\_dir-y_run-$printFunc0\_epi
+                  Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                        -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
+                  mv $datasetPrefix* $sesBIDSTopDir/func
+                  set countFuncMatch0 = `expr $countFuncMatch0 + 1`
                endif
-               set printFunc1=`printf "%02d" $countFuncMatch1`
-               set datasetPrefix = $subjectID\_$sessionID\_dir-y-_run-$printFunc1\_epi
-               Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                     -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
-               mv $datasetPrefix* $sesBIDSTopDir/fmap
-               set countFuncMatch1 = `expr $countFuncMatch1 + 1`
             else
-               if (! -d $sesBIDSTopDir/func) then
-                  # echo CREATING DIRECTORY $sesBIDSTopDir/func
-                  mkdir -p $sesBIDSTopDir/func
-               # else
-                  # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/func
+               if ( $imgRows != "96" ) then
+                  : # echo Folder $folder EPI data DOES NOT have 96 image rows
+               else
+                  if (! -d $sesBIDSTopDir/fmap) then
+                     # echo CREATING DIRECTORY $sesBIDSTopDir/fmap
+                     mkdir -p $sesBIDSTopDir/fmap
+                  # else
+                     # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/fmap
+                  endif
+                  set printFunc1=`printf "%02d" $countFuncMatch1`
+                  set datasetPrefix = $subjectID\_$sessionID\_dir-y-_run-$printFunc1\_epi
+                  Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
+                        -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
+                  mv $datasetPrefix* $sesBIDSTopDir/fmap
+                  set countFuncMatch1 = `expr $countFuncMatch1 + 1`
                endif
-               set printFunc0=`printf "%02d" $countFuncMatch0`
-               set datasetPrefix = $subjectID\_$sessionID\_dir-y_run-$printFunc0\_epi
-               Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
-                     -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
-               mv $datasetPrefix* $sesBIDSTopDir/func
-               set countFuncMatch0 = `expr $countFuncMatch0 + 1`
             endif
             continue
          endif
@@ -275,16 +284,16 @@ foreach subjDir ( $subBIDSFolders )
             : # echo Folder $folder does not contain mcDESPOT data.
          else
             set printOther0=`printf "%02d" $countOtherMatch0`
-            if (! -d $sesBIDSTopDir/other) then
-               # echo CREATING DIRECTORY $sesBIDSTopDir/other
-               mkdir -p $sesBIDSTopDir/other
+            if (! -d $sesBIDSTopDir/anat) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/anat
+               mkdir -p $sesBIDSTopDir/anat
             # else
-               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/other
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
             endif
             set datasetPrefix = $subjectID\_$sessionID\_run-$printOther0\_mcdespot-tr64-6fa14
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
-            mv $datasetPrefix* $sesBIDSTopDir/other
+            mv $datasetPrefix* $sesBIDSTopDir/anat
             set countOtherMatch0 = `expr $countOtherMatch0 + 1`
             continue
          endif
@@ -295,36 +304,34 @@ foreach subjDir ( $subBIDSFolders )
             : # echo Folder $folder does not contain ASSET data.
          else
             set printOther1=`printf "%02d" $countOtherMatch1`
-            if (! -d $sesBIDSTopDir/other) then
-               # echo CREATING DIRECTORY $sesBIDSTopDir/other
-               mkdir -p $sesBIDSTopDir/other
+            if (! -d $sesBIDSTopDir/anat) then
+               # echo CREATING DIRECTORY $sesBIDSTopDir/anat
+               mkdir -p $sesBIDSTopDir/anat
             # else
-               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/other
+               # echo DIRECTORY ALREADY EXISTS FOR $sesBIDSTopDir/anat
             endif
-            set datasetPrefix = $subjectID\_$sessionID\_run-$printOther1\_asset
+            set datasetPrefix = $subjectID\_$sessionID\_run-$printOther1\_FLASH
             Dimon -infile_pattern $folder/'*.dcm' -gert_create_dataset \
                   -gert_quit_on_err -gert_write_as_nifti -gert_to3d_prefix $datasetPrefix
-            mv $datasetPrefix* $sesBIDSTopDir/other
+            mv $datasetPrefix* $sesBIDSTopDir/anat
             set countOtherMatch1 = `expr $countOtherMatch1 + 1`
             continue
          endif
 
-      # echo END OF LOOP within $folder
+      echo "END OF LOOP within folder: "$folder
       end
 
-      # Return to subject-level directory location stored in "pushd" above
       popd
 
-   # echo END OF LOOP within $session
+   echo "END OF LOOP within session: "$session
    end
 
-   # Return to 
    cd ..
 
-# echo END OF LOOP within $subjDir
+echo "END OF LOOP within subjDir: "$subjDir
 end
 
-# Remove original .tgz files and all unpacked non-BIDS directories and files
+echo "Removing original .tgz files and any unpacked non-BIDS directories and files"
 mkdir rmThisDirWhenDone
 set zipList = `find . -mindepth 1 -maxdepth 3 -type f -name "*.tgz"`
 
@@ -355,18 +362,91 @@ end
 # Remove files that are not BIDS-compliant
 rm -rf rmThisDirWhenDone
 
-# Anonymize NIFTI file history by denoting with 3drefit
+echo "Anonymizing file histories by denoting with 3drefit"
+# For NIFTI files
 set allScans = `find -mindepth 2 -maxdepth 5 -type f -name "*.nii"`
 
-# Anonymize AFNI file history by denoting with 3drefit
+# For AFNI files
 # set allScans = `find -mindepth 2 -maxdepth 5 -type f -name "*+orig.HEAD"`
 
 foreach scan ( $allScans )
 
+   # For AFNI data use:
    # set scanOrig = `echo $scan | cut -d "." -f1,2`
    # 3drefit -denote $scanOrig
 
+   # For NIFTI data use:
    3drefit -denote $scan
    
 end
 
+
+# The following can be run using 'BIDS-tools/counter.csh'
+
+# Now find all BIDS-formatted files, count totals,
+# and write this info to text file
+
+echo "Counting scan totals for each subject and session"
+set subDirs = `find . -mindepth 1 -maxdepth 1 -type d -name "sub-*"`
+
+# BIDS suffix labels for scans within respective BIDS folders
+set anatScans = "T1w T2w PD"
+set funcScans = "_dir-y_"
+set fmapScans = "_dir-y-_ frequency magnitude"
+set otherScans = "asset mcdespot"
+set allBIDS = ( $anatScans $funcScans $fmapScans $otherScans )
+
+if ( -f scanCounts.txt ) then
+   rm -f scanCounts.txt
+   echo Directory $allBIDS  >>! scanCounts.txt
+else
+   echo Directory $allBIDS  >>! scanCounts.txt
+endif
+
+foreach subDir ( $subDirs )
+   set nList = ""
+   foreach eachBIDS ( $allBIDS )
+      set nScans = 0
+      echo `ls -R $subDir | grep -iq $eachBIDS`
+      if ( $? ) then
+         : # echo $subDir does not contain $eachBIDS scans
+      else
+         # echo $subDir contains $eachBIDS scans
+         set nScans = `ls -R -1 $subDir | grep -c ".*"$eachBIDS".*.nii"`
+         # set nScans = `ls -R -1 $subDir | grep -c ".*"$eachBIDS".*+orig.HEAD"`
+      endif
+      set nList = ( $nList $nScans )
+   end
+
+   echo `echo $subDir | cut -d "/" -f2` $nList
+   echo `echo $subDir | cut -d "/" -f2` $nList >>! scanCounts.txt
+end
+
+echo "\n" >>! scanCounts.txt
+echo "SESSIONS" >>! scanCounts.txt
+echo "\n" >>! scanCounts.txt
+echo Directory $allBIDS  >>! scanCounts.txt
+
+foreach subDir ( $subDirs )
+   set sesDirs = `find ./$subDir -mindepth 1 -maxdepth 1 -type d -name "ses-*"`
+   foreach sesDir ( $sesDirs )
+      set mList = ""
+      foreach eachBIDS ( $allBIDS )
+         set mScans = 0
+         echo `ls -R $sesDir | grep -iq $eachBIDS`
+         if ( $? ) then
+            : # echo $sesDir does not contain $eachBIDS scans
+         else
+            # echo $sesDir contains $eachBIDS scans
+            set mScans = `ls -R -1 $sesDir | grep -c ".*"$eachBIDS".*.nii"`
+            # set mScans = `ls -R -1 $sesDir | grep -c ".*"$eachBIDS".*+orig.HEAD"`
+         endif
+         set mList = ( $mList $mScans )
+      end
+
+      echo `echo $sesDir | cut -d "/" -f3,4` $mList
+      echo `echo $sesDir | cut -d "/" -f3,4` $mList >>! scanCounts.txt
+
+   end
+
+end

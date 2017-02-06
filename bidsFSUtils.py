@@ -5,7 +5,11 @@ import time, sys, os
 from   fs.opener import fsopendir, fsopen
 
 
+defaultDelimiter = "."      # Default delimiter for BIDS/nii
+# defaultDelimiter = "+"      # Default delimiter for AFNI
 
+defaultExt = ".nii"         # Default file extension for BIDS/nii
+# defaultExt = "+orig"        # Default file extension for AFNI
 
 class bidsToolsFS:
    """
@@ -15,12 +19,7 @@ class bidsToolsFS:
    analysis.
 
    """
-   
-   defaultExt = ".nii"         # NIFTI should be default
-   defaultDelimiter = "."      # Default delimiter for BIDS/nii
-   
-   # defaultExt = "+orig"      # For AFNI datasets
-   # defaultDelimiter = "+"    # Default delimiter for AFNI
+
    
    # def __init__(self):
       # print "Doing not much at all"
@@ -32,17 +31,19 @@ class bidsToolsFS:
 
       # internalBIDSPath = bidsFS._decode_path(bidsDir)
 
-      allRuns = bidsFS.walkfiles(wildcard="*run*")
+      allRuns = bidsFS.walkfiles(wildcard="*sub*")
       # Store all unique dataset names
       runsList = []
 
       for eachRun in allRuns:
-         # Delimiter here for AFNI formatted data sets. For 
-         # proper BIDS tree, would need other scheme, e.g.:
-         #
-         runRootName = eachRun.split(defaultDelimiter)[0]
-         if runRootName not in runsList:
-            runsList.append(runRootName)
+         if defaultDelimiter == "+": # AFNI data set
+            runRootName = eachRun.split(defaultDelimiter)[0]
+            if runRootName not in runsList:
+	       runsList.append(runRootName)
+
+         if defaultDelimiter == ".": # NIFTI data set
+	    if eachRun not in runsList:
+               runsList.append(eachRun)
 
       bidsMasterTreeDict = {}
 
