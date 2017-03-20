@@ -96,25 +96,8 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                            "-blip_forward_dset", blipForHead,
                            executeProcs])
 
-            """
-	    # for ANTs registration
-            executeAndWait(["antsRegistration",
-	                    "-d", "3",
-			    "-m", str("mi'[" + anatOrig + ",epiFixed-" + eachSubSes + defaultExt + ",1,32]'"),
-			    "-t", str("Rigid'[1]'"),
-			    "-o", str("'[fixedReg2T1_" + eachSubSes + "]'"),
-			    "-s", "1x1x1mm",
-			    "-c", str("'[50x50x50]'"),
-			    "-f", "2x2x2"])
-
-            executeAndWait(["antsApplyTransforms",
-	                    "-d", "3",
-			    "-e", "3",
-			    "-i", "epiFixed-" + eachSubSes + defaultExt,
-			    "-r", anatOrig,
-			    "-o", "fixedReg2T1" + eachSubSes + defaultExt,
-			    "-t", str("'[fixedReg2T1_" + eachSubSes + "0GenericAffine.mat,0]'")])
-            """
+            # send original T1, original rs-EPI, and fixed rs-EPI to registration step
+            antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
             print str(eachSubSes) + " complete."
             with open("afniBlipUpDownFixLog.txt", "a") as fixFile:
@@ -329,31 +312,8 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                            "-Allineate_opts", "-warp", "shift_rotate",
                            executeProcs])
 
-            """
-	    # for ANTs registration
-	    print "Running ANTs Registration on " + str(eachSubSes)
-	    metric = "mi'[" + anatOrig + "," + dsetsInput + ",1,32]'"
-	    transformA = "Rigid'[1]'"
-	    output = "'[fixedReg2T1_" + eachSubSes + "]'"
-	    convergence = "'[50x50x50]'"
-            executeAndWait(["antsRegistration",
-	                    "-d", "3",
-			    "-m", str(metric),
-			    "-t", str(transformA),
-			    "-o", str(output),
-			    "-s", "1x1x1mm",
-			    "-c", str(convergence),
-			    "-f", "2x2x2"])
-
-            transformB = "['fixedReg2T1_" + eachSubSes + "0GenericAffine.mat,0]'"
-            executeAndWait(["antsApplyTransforms",
-	                    "-d", "3",
-			    "-e", "3",
-			    "-i", dsetsInput,
-			    "-r", anatOrig,
-			    "-o", "fixedReg2T1" + eachSubSes + defaultExt,
-			    "-t", str(transformB)])
-            """
+            # send original T1, original rs-EPI, and fixed rs-EPI to registration step
+            antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
             # Move files created by topup and applytopup to subject's results folder
             # that was created after AFNI alignment
@@ -564,25 +524,8 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict):
                                                                        # schemes (blip-up/down included)
                            executeProcs])
 
-            """
-	    # for ANTs registration
-            executeAndWait(["antsRegistration",
-	                    "-d", "3",
-			    "-m", "mi'[" + anatOrig + "," + dsetsInput + ",1,32]'",
-			    "-t", "Rigid'[1]'",
-			    "-o", "'[fixedReg2T1_" + eachSubSes + "]'",
-			    "-s", "1x1x1mm",
-			    "-c", "'[50x50x50]'",
-			    "-f", "2x2x2"])
-
-            executeAndWait(["antsApplyTransforms",
-	                    "-d", "3",
-			    "-e", "3",
-			    "-i", dsetsInput,
-			    "-r", anatOrig,
-			    "-o", "fixedReg2T1" + eachSubSes + defaultExt,
-			    "-t", "'[fixedReg2T1_" + eachSubSes + "0GenericAffine.mat,0]'"])
-            """
+            # send original T1, original rs-EPI, and fixed rs-EPI to registration step
+            antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
             # Move files created by fugue to subject's results folder.
             moveDestInput = eachSubSes + ".results/"
@@ -599,6 +542,36 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict):
             with open("fslB0FixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
+
+
+
+def antsReg(anatOrig, blipRest, dsetsInput, eachSubSes):
+
+   print " "
+   print "anatOrig:   " + str(anatOrig)
+   print "blipRest:   " + str(blipRest)
+   print "dsetsInput: " + str(dsetsInput)
+   print "eachSubSes: " + str(eachSubSes)
+   print " "
+
+   """
+   executeAndWait(["antsRegistration",
+                   "-d", "3",
+                   "-m", "mi'[" + anatOrig + "," + dsetsInput + ",1,32]'",
+                   "-t", "Rigid'[1]'",
+                   "-o", "'[fixedReg2T1_" + eachSubSes + "]'",
+                   "-s", "1x1x1mm",
+                   "-c", "'[50x50x50]'",
+                   "-f", "2x2x2"])
+
+   executeAndWait(["antsApplyTransforms",
+                   "-d", "3",
+                   "-e", "3",
+                   "-i", dsetsInput,
+                   "-r", anatOrig,
+                   "-o", "fixedReg2T1" + eachSubSes + defaultExt,
+                   "-t", "'[fixedReg2T1_" + eachSubSes + "0GenericAffine.mat,0]'"])
+   """
 
 
 
