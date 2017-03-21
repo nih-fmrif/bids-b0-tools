@@ -302,7 +302,11 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 
             # When applytopup completes, gather inputs and execute afni_proc.py command.
             # This is to align the anatomical scan to the FSL output EPIs.
+	    if ( defaultExt == ".nii" ):
+	       os.system("gzip -d epiFixed-" + eachSubSes + ".nii.gz")
+
             dsetsInput = "epiFixed-" + eachSubSes + defaultExt
+
             print "Running afni_proc.py on " + str(eachSubSes)
             executeAndWait(["afni_proc.py", "-subj_id", eachSubSes,
                            "-copy_anat", anatOrig,
@@ -545,35 +549,34 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict):
 
 
 
-def antsReg(anatOrig, blipRest, dsetsInput, eachSubSes):
+def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
 
-   print " "
-   print "anatOrig:   " + str(anatOrig)
-   print "blipRest:   " + str(blipRest)
-   print "dsetsInput: " + str(dsetsInput)
-   print "eachSubSes: " + str(eachSubSes)
-   print " "
+   antsReg1 = ("antsRegistration "
+               "-d 3 "
+               "-m mi'[" + str(anatOrig) + "," + str(dsetsInput) + ",1,32]' "
+               "-t Rigid'[1]' "
+               "-o '[fixedReg2T1_" + str(eachSubSes) + "]' "
+               "-s 1x1x1mm "
+               "-c '[50x50x50]' "
+               "-f 2x2x2")
 
-   """
-   executeAndWait(["antsRegistration",
-                   "-d", "3",
-                   "-m", "mi'[" + anatOrig + "," + dsetsInput + ",1,32]'",
-                   "-t", "Rigid'[1]'",
-                   "-o", "'[fixedReg2T1_" + eachSubSes + "]'",
-                   "-s", "1x1x1mm",
-                   "-c", "'[50x50x50]'",
-                   "-f", "2x2x2"])
+   antsReg2 = ("antsApplyTransforms "
+               "-d 3 "
+               "-e 3 "
+               "-i " + str(dsetsInput) + " "
+               "-r " + str(anatOrig) + " "
+               "-o fixedReg2T1" + str(eachSubSes) + str(defaultExt) + " "
+               "-t '[fixedReg2T1_" + str(eachSubSes) + "0GenericAffine.mat,0]'")
 
-   executeAndWait(["antsApplyTransforms",
-                   "-d", "3",
-                   "-e", "3",
-                   "-i", dsetsInput,
-                   "-r", anatOrig,
-                   "-o", "fixedReg2T1" + eachSubSes + defaultExt,
-                   "-t", "'[fixedReg2T1_" + eachSubSes + "0GenericAffine.mat,0]'"])
-   """
+   with open("antsReg_1_" + str(eachSubSes) + ".csh", "a") as antsRegFile1:
+      antsRegFile1.write(antsReg1)
+   print "Starting ANTs registration for " + str(eachSubSes)
+   os.system(antsReg1)
 
-
+   with open("antsReg_2_" + str(eachSubSes) + ".csh", "a") as antsRegFile2:
+      antsRegFile2.write(antsReg2)
+   print "Applying ANTs registration transformations for " + str(eachSubSes)
+   os.system(antsReg2)
 
 def executeAndWait(commandArray):
 
