@@ -111,18 +111,16 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             continue
 
 
-def afniB0 (bidsTopLevelDir, bidsSubjectDict):
+def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0):
+   # epi phase encode echo spacing unit is in seconds, FOV is in mm
 
-   # in progress
-
-   """
    t1wRunKey     = "T1w"
    epiRunKey     = "dir-y_run"
    blipForRunKey = "dir-y_run"
    blipRevRunKey = "dir-y-_run"
    magRunKey     = "magnitude"
    freqRunKey    = "frequency"
-   maskRunKey    = "mask"
+   maskRunKey    = "magUFMask"
 
    for eachSubject in bidsSubjectDict.keys():
 
@@ -135,12 +133,11 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict):
          else:
             sessLoc = subjLoc + eachSession + "/"
 
-         runLoc = ""
+         runLoc   = ""
          anatOrig = ""
          blipRest = ""
-         blipFor = ""
-         blipRev = ""
-         magOrig = ""
+         blipRev  = ""
+         magOrig  = ""
          freqOrig = ""
          maskOrig = ""
 
@@ -149,74 +146,50 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict):
             scanTypeLoc = sessLoc + eachScanType + "/"
 
             for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
+
                runLoc = scanTypeLoc + eachRun
+
                if t1wRunKey in runLoc:
-                  anatOrig = runLoc + "+orig"
+                  anatOrig = runLoc
                elif epiRunKey in runLoc: # For this analysis we use the resting/task
                                          # for the forward calibration scan. Not
                                          # always going to be the case.
-                  blipRest = runLoc + '+orig[0]' # Test, previously used '+orig[0..29]'
-                  restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubject + ".nii.gz" + " " + blipRest
-                  os.system (restDsetCopyCmd)
-                  # blipFor = runLoc + '+orig[1]'
+                  blipRest = runLoc + '[0..24]' # Tested with, '[0]'
                elif blipRevRunKey in runLoc:
-                  blipRev = runLoc + '+orig[1]'
+                  blipRev = runLoc + '[0]'
                elif magRunKey in runLoc:
-                  magOrig = runLoc + '+orig'
+                  magOrig = runLoc
                elif freqRunKey in runLoc:
-                  freqOrig = runLoc + '+orig'
+                  freqOrig = runLoc
                elif maskRunKey in runLoc:
-                  maskOrig = runLoc + '+orig'
+                  maskOrig = runLoc
                else:
                   pass
 
-         if ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (blipFor == "") or (blipRev == "") or (magOrig == "") or (freqOrig == "") or (maskOrig == "") ):
-            print str(eachSubject) + "/" + str(eachSession) + " does not have complete data for AFNI B0 correction"
-         else:
-            print str(eachSubject) + "/" + str(eachSession) + " is good to go!"
+         eachSubSes = eachSubject + "_" + eachSession
 
-         executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
-                        "-expr", "(a-16383)*2.0*PI*step(b)", # Other analyses may use different scaling.
-                        "-datum", "float", "-prefix", "fmapInRPS-" + eachSubject + defaultExt])
+         if not ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (maskOrig == "") or (freqOrig == "") ):
 
-         executeAndWait(["3dPolyfit", "-nord", "9", "-prefix", eachSubject + "_fittedMask.nii.gz",
-                         "-verb", "fmapInRPS-" + eachSubject + defaultExt])                 
+            print "Starting afniB0 for " + str(eachSubSes)
+            executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
+                           "-expr", "(a-16383.0)*" + epiPhaseEncodeEchoSpacing + "*" + epiPhaseFOV + "*b", # Other analyses may use different scaling.
+                           "-datum", "float", "-prefix", "fmapInHz-" + eachSubject + defaultExt])
 
-         executeAndWait(["3dcalc", "-a", eachSubject + "_fittedMask.nii.gz", "-b", maskOrig,
-                        "-expr", "a*step(b)", 
-                        "-datum", "float", "-prefix", "fmapFittedInRPSMasked-" + eachSubject + defaultExt])
+            executeAndWait(["3dBlurToFWHM", "-prefix", "fmapInHz-smoothed-" + eachSubject + defaultExt,
+                           "-FWHM", "30.0", "-input", "fmapInHz-" + eachSubject + defaultExt]) # FWHM value may differ for other analyses
 
-         # Unifize anatomical scan
-         executeAndWait(["3dUnifize", "-prefix", "magUF-" + eachSubject + defaultExt, "-input", magOrig])
-         
-         # Automask command to generate mask from mag:
-         executeAndWait(["3dAutomask", "-prefix", "magUFMaskE3-" + eachSubject + defaultExt,
-                        "-erode", "3", "-peels", "2", "magUF-" + eachSubject + defaultExt])
+            # Move files created by fugue to subject's results folder.
+            # moveDestInput = eachSubject + "_" + eachSession + ".results/"
+            # moveFilesInput = "*?" + eachSubject + "*"
+            # os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+            print str(eachSubject) + " completed"
 
-         # Now compute B0 map in radians per sec and mask in single step:
-         executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
-                        "-expr", "(a-16383)*2.0*PI*step(b)", # Other analyses may use different scaling.
-                        "-datum", "float", "-prefix", "fmapInRPSMasked-" + eachSubject + defaultExt])
+         elif ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (maskOrig == "") or (freqOrig == "") ):
+            print str(eachSubSes) + " does not have required scans and/or mask for afniB0!"
+            with open("afniB0FixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 0\n")
+            continue
 
-         # When fugue completes, gather inputs and execute afni_proc.py command.
-         This is to align the anatomical scan to the FSL output EPIs.
-         dsetsInput = "epiFixed-" + eachSubject + ".nii.gz"
-         executeAndWait(["afni_proc.py", "-subj_id", eachSubject + "_" + eachSession,
-                        "-copy_anat", anatOrig,
-                        "-dsets", dsetsInput,
-                        "-blocks", "align",
-                        "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubject],
-                        "-Allineate_opts", "-warp", "shift_rotate", # to avoid changing shape of brain to match fixed or original
-                                                                    # echo planar images.  Potentially apply to _ALL_ correction
-                                                                    # schemes (blip-up/down included)
-                        executeProcs])
-
-         # Move files created by fugue to subject's results folder.
-         moveDestInput = eachSubject + "_" + eachSession + ".results/"
-         moveFilesInput = "*?" + eachSubject + "*"
-         os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
-         print str(eachSubject) + " completed"
-   """
 
 
 def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
@@ -402,7 +375,7 @@ def fslMaskB0 (bidsTopLevelDir, bidsSubjectDict):
 
 
 
-def fslB0 (bidsTopLevelDir, bidsSubjectDict):
+def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
    
    print "This module is run after masks are created by the fslMaskB0 function."
    print "The masks from step 1 were edited by hand using AFNI's draw ROI tool."
@@ -486,7 +459,7 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict):
             distDirections = ["x","x-","y","y-"]
             for eachDirection in distDirections:
                print "Starting fugue for " + str(eachSubSes)
-               executeAndWait(["fugue", "-i", "rest-" + eachSubSes, "--dwell=310e-6",
+               executeAndWait(["fugue", "-i", "rest-" + eachSubSes, "--dwell=" + epiPhaseEncodeEchoSpacing,
                               "--loadfmap=fmapInRPSMasked-" + eachSubSes + defaultExt,
                               "-u", "epiFixed-" + eachSubSes + "_unwarpDir-" + eachDirection, 
                               "--unwarpdir=" + eachDirection, # To test best direction, run four times with  
@@ -578,6 +551,8 @@ def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
    print "Applying ANTs registration transformations for " + str(eachSubSes)
    os.system(antsReg2)
 
+
+
 def executeAndWait(commandArray):
 
    thisPopen = Popen(commandArray, stdout=PIPE, stderr=PIPE)
@@ -596,7 +571,7 @@ def main():
    usage = "%prog [options]"
    description = ("Routine to build command to apply distortion correct to data pointed to\n by a dictionary from a BIDS tree:")
 
-   usage =       ("  %prog -d bidsDataTree" )
+   usage =       ("  %prog -d bidsDataTree [options]" )
    epilog =      ("For questions, suggestions, information, please contact Vinai Roopchansingh, Jerry French.")
 
    parser = OptionParser(usage=usage, description=description, epilog=epilog)
@@ -617,6 +592,13 @@ def main():
    parser.add_option ("-m", "--mask",     action="store_true", dest="mask", default=False,
                                           help="DEFAULT, inputs are Reverse Blip Epi Scans")
 
+   parser.add_option ("--esp",            type="float", dest="esp", default=0.00031,
+                                          help="Set EPI phase encode echo spacing in seconds \
+					        +++ DEFAULT=0.00031")
+   parser.add_option ("--fov",            type="float", dest="fov", default=192.0,
+                                          help="Set EPI phase field of view in mm \
+					        +++ DEFAULT=192.0")
+
    (options, args) = parser.parse_args()
 
    if ( str(options.dataDir)[-1] != "/" ):
@@ -629,8 +611,8 @@ def main():
       afniBlipUpDown (options.dataDir, bidsDict)
 
    if (options.software and not options.scan):
-      print "Coming attractions... AFNI's B0 TOOLS!"
-      afniB0 (options.dataDir, bidsDict)
+      print "Starting distortion correction using AFNI's  B0 TOOLS!"
+      afniB0 (options.dataDir, bidsDict, options.esp, options.fov)
 
    if (not options.software and options.scan):
       print "Starting distortion correction using FSL's TOPUP"
@@ -638,7 +620,7 @@ def main():
 
    if (not options.software and not options.scan) and (options.mask):
       print "Starting B0 MASK CREATION for use in FSL's FUGUE"
-      fslMaskB0 (options.dataDir, bidsDict)
+      fslMaskB0 (options.dataDir, bidsDict, options.esp)
 
    if (not options.software and not options.scan) and not (options.mask):
       print "Starting distortion correction using FSL's FUGUE"
