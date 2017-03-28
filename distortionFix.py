@@ -172,11 +172,21 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031,
 
             print "Starting afniB0 for " + str(eachSubSes)
             executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
-                           "-expr", "(a-16383.0)*" + epiPhaseEncodeEchoSpacing + "*" + epiPhaseFOV + "*b", # Other analyses may use different scaling.
+                           "-expr", "(a-16383.0)*" + str(epiPhaseEncodeEchoSpacing) + "*" + str(epiPhaseFOV) + "*b", # Other analyses may use different scaling.
                            "-datum", "float", "-prefix", "fmapInHz-" + eachSubject + defaultExt])
 
             executeAndWait(["3dBlurToFWHM", "-prefix", "fmapInHz-smoothed-" + eachSubject + defaultExt,
                            "-FWHM", "30.0", "-input", "fmapInHz-" + eachSubject + defaultExt]) # FWHM value may differ for other analyses
+
+            # Self warp field map to match epi distortions
+            executeAndWait(["3dNwarpApply", "-warp", "AP:1.0:fmapInHz-smoothed-" + eachSubject + defaultExt,
+	                    "-prefix", "fmapInHz-smoothed-warped2epi-" + eachSubject + defaultExt,
+			    "-source", "fmapInHz-smoothed-" + eachSubject + defaultExt])
+
+            # Now apply warped field map to fix EPI
+            executeAndWait(["3dNwarpApply", "-warp", "AP:-1.0:fmapInHz-smoothed-warped2epi-" + eachSubject + defaultExt,
+	                    "-prefix", "epiFixed-" + eachSubject + defaultExt,
+			    "-source", blipRest])
 
             # Move files created by fugue to subject's results folder.
             # moveDestInput = eachSubject + "_" + eachSession + ".results/"
