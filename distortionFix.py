@@ -82,7 +82,7 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 
 	 if not ( (runLoc == "") or (anatOrig == "") or (epiDsets == "") or (blipForHead == "") or (blipRevHead == "") ):
 
-	    print "Starting fslBlipUpDown for " + str(eachSubSes)
+	    print "Starting afniBlipUpDown for " + str(eachSubSes)
             epiDsetCopyCmd = "3dTcat -prefix " + epiDsets + " " + blipFor
             os.system (epiDsetCopyCmd)
 
@@ -97,7 +97,14 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                            executeProcs])
 
             # send original T1, original rs-EPI, and fixed rs-EPI to registration step
-            antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
+	    # dsetsInput = "pb01." + str(eachSubSes) + ".r01.blip+orig"
+            # antsReg(anatOrig=anatOrig, blipRest=blipFor, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
+
+            # Make results folder and move files created to that folder.
+            moveDestInput = eachSubSes + ".results/"
+            # os.system ("mkdir " + moveDestInput)
+            moveFilesInput = "*?" + eachSubSes + "*"
+            os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
 
             print str(eachSubSes) + " complete."
             with open("afniBlipUpDownFixLog.txt", "a") as fixFile:
@@ -170,29 +177,51 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031,
 
          if not ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (maskOrig == "") or (freqOrig == "") ):
 
+	    restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubSes + defaultExt + " " + blipRest
+            os.system (restDsetCopyCmd)
+            anatDsetCopyCmd = "3dTcat -prefix anat-" + eachSubSes + defaultExt + " " + anatOrig
+	    os.system (anatDsetCopyCmd)
+
+            freqMode1 = Popen(["3dROIstats", "-nomeanout", "-quiet", "-mask", maskOrig, "-mode", freqOrig], stdout=PIPE)
+            freqOut = freqMode1.communicate()[0]
             print "Starting afniB0 for " + str(eachSubSes)
             executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
-                           "-expr", "(a-16383.0)*" + str(epiPhaseEncodeEchoSpacing) + "*" + str(epiPhaseFOV) + "*b", # Other analyses may use different scaling.
-                           "-datum", "float", "-prefix", "fmapInHz-" + eachSubject + defaultExt])
+                           "-expr", "(a-" + freqOut.strip() + ")*" + str(epiPhaseEncodeEchoSpacing) + "*" + str(epiPhaseFOV) + "*b", # Other analyses may use different scaling.
+                           "-datum", "float", "-prefix", "fmapInHz-" + eachSubSes + defaultExt])
 
-            executeAndWait(["3dBlurToFWHM", "-prefix", "fmapInHz-smoothed-" + eachSubject + defaultExt,
-                           "-FWHM", "30.0", "-input", "fmapInHz-" + eachSubject + defaultExt]) # FWHM value may differ for other analyses
+            executeAndWait(["3dmerge", "-1blur_sigma", "6", "-doall", "-datum", "float",
+	                    "-prefix", "fmapInHz-smoothed-" + eachSubSes + defaultExt,
+                            "fmapInHz-" + eachSubSes + defaultExt])
 
             # Self warp field map to match epi distortions
-            executeAndWait(["3dNwarpApply", "-warp", "AP:1.0:fmapInHz-smoothed-" + eachSubject + defaultExt,
-	                    "-prefix", "fmapInHz-smoothed-warped2epi-" + eachSubject + defaultExt,
-			    "-source", "fmapInHz-smoothed-" + eachSubject + defaultExt])
+            executeAndWait(["3dNwarpApply", "-warp", "AP:1.0:fmapInHz-smoothed-" + eachSubSes + defaultExt,
+	                    "-prefix", "fmapInHz-smoothed-warped2epi-" + eachSubSes + defaultExt,
+			    "-source", "fmapInHz-smoothed-" + eachSubSes + defaultExt])
 
             # Now apply warped field map to fix EPI
-            executeAndWait(["3dNwarpApply", "-warp", "AP:-1.0:fmapInHz-smoothed-warped2epi-" + eachSubject + defaultExt,
-	                    "-prefix", "epiFixed-" + eachSubject + defaultExt,
+            executeAndWait(["3dNwarpApply", "-warp", "AP:-1.0:fmapInHz-smoothed-warped2epi-" + eachSubSes + defaultExt,
+	                    "-prefix", "epiFixed-" + eachSubSes + defaultExt,
 			    "-source", blipRest])
 
-            # Move files created by fugue to subject's results folder.
-            # moveDestInput = eachSubject + "_" + eachSession + ".results/"
-            # moveFilesInput = "*?" + eachSubject + "*"
-            # os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
-            print str(eachSubject) + " completed"
+            # send original T1, original rs-EPI, and fixed rs-EPI to registration step
+            dsetsInput = "epiFixed-" + eachSubSes + defaultExt
+            antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
+
+            # Make results folder and move files created to that folder.
+            moveDestInput = eachSubSes + ".results/"
+            os.system ("mkdir " + moveDestInput)
+            moveFilesInput = "*?" + eachSubSes + "*"
+            os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+
+            print str(eachSubSes) + " complete."
+            with open("afniB0FixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 1\n")
+
+         elif not ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (freqOrig == "") ) and (maskOrig == ""):
+            print str(eachSubSes) + " has required scans but DOES NOT have mask for afniB0!"
+            with open("afniB0FixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " missingMaskOnly\n")
+            continue
 
          elif ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (maskOrig == "") or (freqOrig == "") ):
             print str(eachSubSes) + " does not have required scans and/or mask for afniB0!"
@@ -259,6 +288,8 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             os.system (restDsetCopyCmd)
             bothBlipsCmd = "3dTcat -prefix bothBlips-" + eachSubSes + defaultExt + " " + blipRev + " " + blipFor
             os.system (bothBlipsCmd)
+            anatDsetCopyCmd = "3dTcat -prefix anat-" + eachSubSes + defaultExt + " " + anatOrig
+	    os.system (anatDsetCopyCmd)
 
             # Gather inputs and execute topup command
             imainInputA = "--imain=bothBlips-" + eachSubSes
@@ -283,28 +314,15 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                               datainInputB, topupInput, interpInput, outInputB,
                               methodInput])
 
-            # When applytopup completes, gather inputs and execute afni_proc.py command.
-            # This is to align the anatomical scan to the FSL output EPIs.
+            # send original T1, original rs-EPI, and fixed rs-EPI to registration step
 	    if ( defaultExt == ".nii" ):
 	       os.system("gzip -d epiFixed-" + eachSubSes + ".nii.gz")
-
             dsetsInput = "epiFixed-" + eachSubSes + defaultExt
-
-            print "Running afni_proc.py on " + str(eachSubSes)
-            executeAndWait(["afni_proc.py", "-subj_id", eachSubSes,
-                           "-copy_anat", anatOrig,
-                           "-dsets", dsetsInput,
-                           "-blocks", "align",
-                           "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubSes],
-                           "-Allineate_opts", "-warp", "shift_rotate",
-                           executeProcs])
-
-            # send original T1, original rs-EPI, and fixed rs-EPI to registration step
             antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
-            # Move files created by topup and applytopup to subject's results folder
-            # that was created after AFNI alignment
+            # Make results folder and move files created to that folder.
             moveDestInput = eachSubSes + ".results/"
+            os.system ("mkdir " + moveDestInput)
             moveFilesInput = "*?" + eachSubSes + "*"
             os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
 
@@ -320,9 +338,9 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             continue
 
 
-def fslMaskB0 (bidsTopLevelDir, bidsSubjectDict):
+def maskB0 (bidsTopLevelDir, bidsSubjectDict):
    
-   print "This module creates masks to be used with the fslB0 function."
+   print "This module creates masks to be used with the afniB0 and fslB0 functions."
    print "The masks can be edited by hand using AFNI's draw ROI tool."
 
    magRunKey     = "magnitude"
@@ -358,7 +376,7 @@ def fslMaskB0 (bidsTopLevelDir, bidsSubjectDict):
          
          if not ( (runLoc == "") or (magOrig == "") ):
 
-            print "Starting fslMaskB0 for " + str(eachSubSes)
+            print "Starting maskB0 for " + str(eachSubSes)
             
             # Unifize magnitude data
             print "Starting step 1a (3dUnifize) for " + str(eachSubSes)
@@ -374,12 +392,12 @@ def fslMaskB0 (bidsTopLevelDir, bidsSubjectDict):
                             "magUF-" + eachSubSes + defaultExt])
 
             print str(eachSubSes) + " complete."
-            with open("fslMaskB0FixLog.txt", "a") as fixFile:
+            with open("maskB0FixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 1\n")
             
          elif ( (runLoc == "") or (magOrig == "") ):
-	    print str(eachSubSes) + " does not have the required magnitude scan for fslMaskB0!"
-            with open("fslMaskB0FixLog.txt", "a") as fixFile:
+	    print str(eachSubSes) + " does not have the required magnitude scan for maskB0!"
+            with open("maskB0FixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
 
@@ -387,7 +405,7 @@ def fslMaskB0 (bidsTopLevelDir, bidsSubjectDict):
 
 def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
    
-   print "This module is run after masks are created by the fslMaskB0 function."
+   print "This module is run after masks are created by the maskB0 function."
    print "The masks from step 1 were edited by hand using AFNI's draw ROI tool."
 
    t1wRunKey     = "T1w"
@@ -448,6 +466,8 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
 
 	    restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubSes + defaultExt + " " + blipRest
             os.system (restDsetCopyCmd)
+            anatDsetCopyCmd = "3dTcat -prefix anat-" + eachSubSes + defaultExt + " " + anatOrig
+	    os.system (anatDsetCopyCmd)
 
             # Now compute B0 map in radians per sec and mask:
             print "Starting 3dROIstats and 3dcalc for " + str(eachSubSes)
@@ -459,74 +479,126 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
             executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
                            "-expr", "(a-" + freqOut.strip() + ")*2.0*PI*step(b)", # Other analyses may use different scaling.
                            "-datum", "float", "-prefix", "fmapInRPSMasked-" + eachSubSes + defaultExt])
-
-            executeAndWait(["3dcalc", "-a", blipRest, "-b", blipRev,
-                            "-expr", "isnegative(a+b-1000)", "-datum", "float",
-                            "-prefix", "epiNegMask_" + eachSubSes + defaultExt])
-
-            unwarpTestDict = {}
             
             distDirections = ["x","x-","y","y-"]
             for eachDirection in distDirections:
-               print "Starting fugue for " + str(eachSubSes)
-               executeAndWait(["fugue", "-i", "rest-" + eachSubSes, "--dwell=" + epiPhaseEncodeEchoSpacing,
+               print "Starting fugue in " + str(eachDirection) + " direction for " + str(eachSubSes)
+               executeAndWait(["fugue", "-i", "rest-" + eachSubSes, "--dwell=" + str(epiPhaseEncodeEchoSpacing),
                               "--loadfmap=fmapInRPSMasked-" + eachSubSes + defaultExt,
                               "-u", "epiFixed-" + eachSubSes + "_unwarpDir-" + eachDirection, 
-                              "--unwarpdir=" + eachDirection, # To test best direction, run four times with  
-                                                              # distDict[eachSubject] replaced with x, x-, y, and x-
+                              "--unwarpdir=" + eachDirection,
                               "--savefmap=" + "fmapSmooth3_2-" + eachSubSes,
                               "--smooth3=2"])
 
-               executeAndWait(["3dcalc", "-a", "epiFixed-" + eachSubSes + "_unwarpDir-" + eachDirection + defaultExt,
-                               "-expr", "ispositive(a-1000)", "-datum", "float",
-                               "-prefix", "epiFixedMask_" + eachSubSes + "_" + eachDirection + defaultExt])
-
-               epiMaskMean = Popen(["3dROIstats", "-nomeanout", "-quiet", "-mask", "epiNegMask_" + eachSubSes + defaultExt,
-                                    "-nzsum", "epiFixedMask_" + eachSubSes + "_" + eachDirection + ".nii.gz"], stdout=PIPE)
-               epiMaskMean.wait()
-               epiMaskMeanOut = epiMaskMean.communicate()[0]
-               unwarpTestDict.update({eachDirection: epiMaskMeanOut.strip()})
-
-            bestUnwarpTest = min(unwarpTestDict.values(), key=float)
-            print str(unwarpTestDict)
-            print "Value of least difference from sum of epiFor+epiRev is " + str(bestUnwarpTest)
-            for unwarpTest, unwarpValue in unwarpTestDict.iteritems():
-               if unwarpValue == bestUnwarpTest:
-                  bestUnwarpDir = unwarpTest
-            print "Best unwarp direction for " + str(eachSubSes) + " is therefore " + str(bestUnwarpDir)
-
             print "Fugue completed for " + str(eachSubSes)
 
-            # When fugue completes, gather inputs and execute afni_proc.py command.
-            print "Starting afni_proc.py for " + str(eachSubSes)
-            # This is to align the anatomical scan to the FSL output EPIs.
-            dsetsInput = "epiFixed-" + eachSubSes + "_unwarpDir-" + bestUnwarpDir + defaultExt
-            executeAndWait(["afni_proc.py", "-subj_id", eachSubSes,
-                           "-copy_anat", anatOrig,
-                           "-dsets", dsetsInput,
-                           "-blocks", "align",
-                           "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubSes],
-                           "-Allineate_opts", "-warp", "shift_rotate", # to avoid changing shape of brain to match fixed or original
-                                                                       # echo planar images.  Potentially apply to _ALL_ correction
-                                                                       # schemes (blip-up/down included)
-                           executeProcs])
+            # Complete list of subjects with all scans for fslB0
+            unwarpKeys = ["",""]
 
+            # Input unwarp directions based on best fixed epi by visual inspection
+            unwarpVals = ["",""]
+
+            unwarpDict = dict(zip(unwarpKeys, unwarpVals))
+
+            if eachSubSes in unwarpDict.keys():
+               finalUnwarpDir = unwarpDict[eachSubSes]
+	       unwarpLog = "1"
+	    else:
+	       finalUnwarpDir = "x"
+	       unwarpLog = "2"
+
+            print "Starting antsReg for " + str(eachSubSes)
             # send original T1, original rs-EPI, and fixed rs-EPI to registration step
+	    if ( defaultExt == ".nii" ):
+	       os.system("gzip -d epiFixed-" + eachSubSes + "_unwarpDir-" + finalUnwarpDir + ".nii.gz")
+            dsetsInput = "epiFixed-" + eachSubSes + "_unwarpDir-" + finalUnwarpDir + defaultExt
             antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
-            # Move files created by fugue to subject's results folder.
+            # Make results folder and move files created to that folder.
             moveDestInput = eachSubSes + ".results/"
+            os.system ("mkdir " + moveDestInput)
             moveFilesInput = "*?" + eachSubSes + "*"
             os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
 
             print str(eachSubSes) + " complete."
             with open("fslB0FixLog.txt", "a") as fixFile:
-	       fixFile.write(str(eachSubSes) + " 1" + " bestUnwarpTest:" + str(bestUnwarpTest) + " bestUnwarpDir:" + str(bestUnwarpDir) + "\n")
-	       fixFile.write(str(unwarpTestDict) + "\n")
+	       fixFile.write(str(eachSubSes) + " " + str(unwarpLog) + " finalUnwarpDir:" + str(finalUnwarpDir) + "\n")
+
+         elif not ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (freqOrig == "") ) and (maskOrig == ""):
+            print str(eachSubSes) + " has required scans but DOES NOT have mask for fslB0!"
+            with open("fslB0FixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " missingMaskOnly\n")
+            continue
 
          elif ( (runLoc == "") or (anatOrig == "") or (blipRest == "") or (maskOrig == "") or (freqOrig == "") ):
             print str(eachSubSes) + " does not have required scans and/or mask for fslB0!"
             with open("fslB0FixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 0\n")
+            continue
+
+
+def noCorr (bidsTopLevelDir, bidsSubjectDict):
+
+   t1wRunKey         = "T1w"
+   epiRunKey         = "dir-y_run"
+
+   for eachSubject in bidsSubjectDict.keys():
+
+      subjLoc = bidsTopLevelDir + eachSubject + "/"
+
+      for eachSession in bidsSubjectDict[eachSubject].keys():
+
+         if "NULL" in eachSession:
+            sessLoc = subjLoc
+         else:
+            sessLoc = subjLoc + eachSession + "/"
+
+         runLoc      = ""
+         anatOrig    = ""
+         blipRest    = ""
+
+         for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
+            
+            scanTypeLoc = sessLoc + eachScanType + "/"
+
+            for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
+
+               runLoc = scanTypeLoc + eachRun
+
+               if t1wRunKey in runLoc:
+                  anatOrig = runLoc
+
+               if epiRunKey in runLoc:
+                  blipRest = runLoc + '[1]' # For data with low contrast in time series
+
+         eachSubSes = eachSubject + "_" + eachSession
+
+	 if not ( (runLoc == "") or (anatOrig == "") or (blipRest == "") ):
+
+	    print "Starting noCorr for " + str(eachSubSes)
+	    restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubSes + defaultExt + " " + blipRest
+            os.system (restDsetCopyCmd)
+            anatDsetCopyCmd = "3dTcat -prefix anat-" + eachSubSes + defaultExt + " " + anatOrig
+	    os.system (anatDsetCopyCmd)
+
+            # send original T1, original rs-EPI, and fixed rs-EPI to registration step
+	    dsetsInput = blipRest
+            antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
+
+            # Make results folder and move files created to that folder.
+            moveDestInput = eachSubSes + ".results/"
+            os.system ("mkdir " + moveDestInput)
+            moveFilesInput = "*?" + eachSubSes + "*"
+            os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+
+            print str(eachSubSes) + " complete."
+            with open("noCorrFixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 1\n")
+
+         elif ( (runLoc == "") or (anatOrig == "") or (blipForHead == "") ):
+
+	    print str(eachSubSes) + " does not have necessary scans for noCorr!"
+            with open("noCorrFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
 
@@ -538,7 +610,7 @@ def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
                "-d 3 "
                "-m mi'[" + str(anatOrig) + "," + str(dsetsInput) + ",1,32]' "
                "-t Rigid'[1]' "
-               "-o '[fixedReg2T1_" + str(eachSubSes) + "]' "
+               "-o '[fixedReg2T1_" + str(eachSubSes) + "_]' "
                "-s 1x1x1mm "
                "-c '[50x50x50]' "
                "-f 2x2x2")
@@ -548,9 +620,10 @@ def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
                "-e 3 "
                "-i " + str(dsetsInput) + " "
                "-r " + str(anatOrig) + " "
-               "-o fixedReg2T1" + str(eachSubSes) + str(defaultExt) + " "
-               "-t '[fixedReg2T1_" + str(eachSubSes) + "0GenericAffine.mat,0]'")
+               "-o fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " "
+               "-t '[fixedReg2T1_" + str(eachSubSes) + "_0GenericAffine.mat,0]'")
 
+   # Write ANTs commands to shell script and execute
    with open("antsReg_1_" + str(eachSubSes) + ".csh", "a") as antsRegFile1:
       antsRegFile1.write(antsReg1)
    print "Starting ANTs registration for " + str(eachSubSes)
@@ -560,6 +633,24 @@ def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
       antsRegFile2.write(antsReg2)
    print "Applying ANTs registration transformations for " + str(eachSubSes)
    os.system(antsReg2)
+
+   fixedRegEpi = "fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + '[0]'
+   os.system("3dTcat -prefix 1vol_fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " " + str(fixedRegEpi))
+
+   # Collect and write registration metrics to file
+   antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
+                          "Mattes", anatOrig, "1vol_fixedReg2T1_" + str(eachSubSes) + str(defaultExt)], 
+			  stdout=PIPE)
+   antsRegOut = antsRegMetric.communicate()[0]
+   if (antsRegOut == ""):
+      antsRegOut = "metricError\n"
+   with open("antsRegMetrics.txt", "a") as antsRegMetricFile:
+      antsRegMetricFile.write(str(eachSubSes) + " " + str(antsRegOut))
+
+   # Move files to results folder.
+   moveDestInput = eachSubSes + ".results/"
+   moveFilesInput = "*?" + eachSubSes + "*"
+   os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
 
 
 
@@ -599,8 +690,11 @@ def main():
    parser.add_option ("-b", "--B0Fmaps",  action="store_false", dest="scan", default=True,
                                           help="Alternative to -e, inputs are B0 Field Maps")
 
+   parser.add_option ("-n", "--noCorr",   action="store_true", dest="corr", default=False,
+                                          help="Option to register T1 to rsEPI without distortion correction")
+
    parser.add_option ("-m", "--mask",     action="store_true", dest="mask", default=False,
-                                          help="DEFAULT, inputs are Reverse Blip Epi Scans")
+                                          help="Option to generate B0 mask needed for B0 corrections")
 
    parser.add_option ("--esp",            type="float", dest="esp", default=0.00031,
                                           help="Set EPI phase encode echo spacing in seconds \
@@ -616,26 +710,31 @@ def main():
 
    bidsDict = bidsToolsFS().buildBIDSDict(options.dataDir)
 
-   if (options.software and options.scan):
-      print "Starting distortion correction using AFNI's BLIP-UP/DOWN TOOLS"
-      afniBlipUpDown (options.dataDir, bidsDict)
+   if (not options.corr and not options.mask):
 
-   if (options.software and not options.scan):
-      print "Starting distortion correction using AFNI's  B0 TOOLS!"
-      afniB0 (options.dataDir, bidsDict, options.esp, options.fov)
+      if (options.software and options.scan):
+         print "Starting distortion correction using AFNI's BLIP-UP/DOWN TOOLS"
+         afniBlipUpDown (options.dataDir, bidsDict)
 
-   if (not options.software and options.scan):
-      print "Starting distortion correction using FSL's TOPUP"
-      fslBlipUpDown (options.dataDir, bidsDict)
+      if (options.software and not options.scan):
+         print "Starting distortion correction using AFNI's B0 TOOLS"
+         afniB0 (options.dataDir, bidsDict, options.esp, options.fov)
 
-   if (not options.software and not options.scan) and (options.mask):
-      print "Starting B0 MASK CREATION for use in FSL's FUGUE"
-      fslMaskB0 (options.dataDir, bidsDict, options.esp)
+      if (not options.software and options.scan):
+         print "Starting distortion correction using FSL's TOPUP"
+         fslBlipUpDown (options.dataDir, bidsDict)
 
-   if (not options.software and not options.scan) and not (options.mask):
-      print "Starting distortion correction using FSL's FUGUE"
-      fslB0 (options.dataDir, bidsDict)
+      if (not options.software and not options.scan):
+         print "Starting distortion correction using FSL's FUGUE"
+         fslB0 (options.dataDir, bidsDict, options.esp)
 
+   if (options.mask):
+      print "Starting B0 MASK CREATION for use in B0 corrections"
+      maskB0 (options.dataDir, bidsDict)
+
+   if (options.corr):
+      print "Starting ANTs REGISTRATION without distortion corrections"
+      noCorr (options.dataDir, bidsDict)
 
    
 if __name__ == '__main__':
