@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import time, sys, os
-from   subprocess import Popen, PIPE, STDOUT
-from   optparse  import  OptionParser
+import csv
+import matplotlib.pyplot as mp
+from   subprocess  import Popen, PIPE, STDOUT
+from   optparse    import OptionParser
 from   bidsFSUtils import bidsToolsFS
 
 
@@ -18,7 +20,7 @@ for sub in allSub:
       subSes = str(sub) + "_" + str(ses)
       allData.append(subSes)
    
-dataNeedingGiantMove = [""]
+dataNeedingGiantMove = ["",""]
 giantMoveDict = dict()
 for subj in allData:
    if subj in dataNeedingGiantMove:
@@ -26,8 +28,8 @@ for subj in allData:
    else:
       giantMoveDict.update({subj: ""})
 
-executeProcs = ""           # Generate proc scripts but DO NOT execute
-# executeProcs = "-execute"   # Generate proc scripts and execute
+# executeProcs = ""           # Generate proc scripts but DO NOT execute
+executeProcs = "-execute"   # Generate proc scripts and execute
 
 
 
@@ -71,12 +73,12 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                   blipFor = runLoc + '[0..24]'
 
                if blipForRunKey in runLoc:
-                  # blipForHead = runLoc + '+orig.HEAD[0..14]'
-                  blipForHead = runLoc + '[1]' # For data with low contrast in time series
+                  # blipForHead = runLoc + '[0..14]'
+                  blipForHead = runLoc + '[0]' # For data with low contrast in time series
 
                if blipRevRunKey in runLoc:
-                  # blipRevHead = runLoc + '+orig.HEAD'
-                  blipRevHead = runLoc + '[1]' # For data with low contrast in time series
+                  # blipRevHead = runLoc
+                  blipRevHead = runLoc + '[0]' # For data with low contrast in time series
 
          eachSubSes = eachSubject + "_" + eachSession
 
@@ -87,18 +89,20 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             os.system (epiDsetCopyCmd)
 
             executeAndWait(["afni_proc.py", "-subj_id", eachSubSes,
-                           "-copy_anat", anatOrig,
-                           "-dsets", epiDsets,
-                           "-blocks", "align",
-                           "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubSes],
-                           "-Allineate_opts", "-warp", "shift_rotate",
-                           "-blip_reverse_dset", blipRevHead,
-                           "-blip_forward_dset", blipForHead,
-                           executeProcs])
+                            "-copy_anat", anatOrig,
+                            "-dsets", epiDsets,
+			    "-blocks", "blip",
+                            # "-blocks", "align",
+                            # "-align_opts_aea", "-cost", "lpc+ZZ", giantMoveDict[eachSubSes],
+                            # "-Allineate_opts", "-warp", "shift_rotate",
+                            "-blip_reverse_dset", blipRevHead,
+                            "-blip_forward_dset", blipForHead,
+                            executeProcs])
 
             # send original T1, original rs-EPI, and fixed rs-EPI to registration step
-	    # dsetsInput = "pb01." + str(eachSubSes) + ".r01.blip+orig"
-            # antsReg(anatOrig=anatOrig, blipRest=blipFor, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
+	    os.system("3dTcat -prefix epiFixed-" + str(eachSubSes) + str(defaultExt) + " " + str(eachSubSes) + ".results/pb01." + str(eachSubSes) + ".r01.blip+orig.HEAD")
+            dsetsInput = "epiFixed-" + eachSubSes + defaultExt
+	    antsReg(anatOrig=anatOrig, blipRest=blipFor, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
             # Make results folder and move files created to that folder.
             moveDestInput = eachSubSes + ".results/"
@@ -116,6 +120,9 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             with open("afniBlipUpDownFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
+
+   plotMI(figPrefix="afniBlip")
+
 
 
 def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0):
@@ -189,7 +196,7 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031,
                            "-expr", "(a-" + freqOut.strip() + ")*" + str(epiPhaseEncodeEchoSpacing) + "*" + str(epiPhaseFOV) + "*b", # Other analyses may use different scaling.
                            "-datum", "float", "-prefix", "fmapInHz-" + eachSubSes + defaultExt])
 
-            executeAndWait(["3dmerge", "-1blur_sigma", "6", "-doall", "-datum", "float",
+            executeAndWait(["3dmerge", "-1blur_sigma", "9", "-doall", "-datum", "float",
 	                    "-prefix", "fmapInHz-smoothed-" + eachSubSes + defaultExt,
                             "fmapInHz-" + eachSubSes + defaultExt])
 
@@ -228,6 +235,8 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031,
             with open("afniB0FixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
+
+   plotMI(figPrefix="afniB0")
 
 
 
@@ -336,6 +345,9 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             with open("fslBlipUpDownFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
+
+   plotMI(figPrefix="fslBlip")
+
 
 
 def maskB0 (bidsTopLevelDir, bidsSubjectDict):
@@ -487,8 +499,8 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
                               "--loadfmap=fmapInRPSMasked-" + eachSubSes + defaultExt,
                               "-u", "epiFixed-" + eachSubSes + "_unwarpDir-" + eachDirection, 
                               "--unwarpdir=" + eachDirection,
-                              "--savefmap=" + "fmapSmooth3_2-" + eachSubSes,
-                              "--smooth3=2"])
+                              "--savefmap=" + "fmapSmooth3_9-" + eachSubSes,
+                              "--smooth3=9"])
 
             print "Fugue completed for " + str(eachSubSes)
 
@@ -536,6 +548,9 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
 
+   plotMI(figPrefix="fslB0")
+
+
 
 def noCorr (bidsTopLevelDir, bidsSubjectDict):
 
@@ -569,7 +584,7 @@ def noCorr (bidsTopLevelDir, bidsSubjectDict):
                   anatOrig = runLoc
 
                if epiRunKey in runLoc:
-                  blipRest = runLoc + '[1]' # For data with low contrast in time series
+                  blipRest = runLoc + '[0..24]'
 
          eachSubSes = eachSubject + "_" + eachSession
 
@@ -582,7 +597,7 @@ def noCorr (bidsTopLevelDir, bidsSubjectDict):
 	    os.system (anatDsetCopyCmd)
 
             # send original T1, original rs-EPI, and fixed rs-EPI to registration step
-	    dsetsInput = blipRest
+            dsetsInput = "rest-" + eachSubSes + defaultExt
             antsReg(anatOrig=anatOrig, blipRest=blipRest, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
             # Make results folder and move files created to that folder.
@@ -595,12 +610,14 @@ def noCorr (bidsTopLevelDir, bidsSubjectDict):
             with open("noCorrFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 1\n")
 
-         elif ( (runLoc == "") or (anatOrig == "") or (blipForHead == "") ):
+         elif ( (runLoc == "") or (anatOrig == "") or (blipRest == "") ):
 
 	    print str(eachSubSes) + " does not have necessary scans for noCorr!"
             with open("noCorrFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
             continue
+
+   plotMI(figPrefix="noCorr")
 
 
 
@@ -634,23 +651,40 @@ def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
    print "Applying ANTs registration transformations for " + str(eachSubSes)
    os.system(antsReg2)
 
-   fixedRegEpi = "fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + '[0]'
-   os.system("3dTcat -prefix 1vol_fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " " + str(fixedRegEpi))
+   os.system("3dTstat -prefix meanTS_fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " " + "fixedReg2T1_" + str(eachSubSes) + str(defaultExt))
 
    # Collect and write registration metrics to file
    antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
-                          "Mattes", anatOrig, "1vol_fixedReg2T1_" + str(eachSubSes) + str(defaultExt)], 
+                          "Mattes", anatOrig, "meanTS_fixedReg2T1_" + str(eachSubSes) + str(defaultExt)], 
 			  stdout=PIPE)
    antsRegOut = antsRegMetric.communicate()[0]
    if (antsRegOut == ""):
-      antsRegOut = "metricError\n"
-   with open("antsRegMetrics.txt", "a") as antsRegMetricFile:
-      antsRegMetricFile.write(str(eachSubSes) + " " + str(antsRegOut))
+      antsRegOut = float('nan')
+   with open("antsRegMetrics.csv", "a") as antsRegCSV:
+      writer = csv.writer(antsRegCSV)
+      writer.writerow([eachSubSes, abs(float(antsRegOut))])
 
-   # Move files to results folder.
-   moveDestInput = eachSubSes + ".results/"
-   moveFilesInput = "*?" + eachSubSes + "*"
-   os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+   # Need to check on what deformationField should be
+   # executeAndWait(["CreateJacobianDeterminantImage", "3",
+   #                 deformationField, "jac_" + eachSubSes + defaultExt])
+
+
+
+def plotMI(figPrefix=""):
+
+   antsRegDict = dict()
+
+   finalCSV = str(figPrefix) + "_MI.csv"
+   os.system("mv antsRegMetrics.csv " + str(finalCSV))
+
+   with open(finalCSV) as f:
+      antsRegData = csv.reader(f, delimiter=",")
+      for row in antsRegData:
+         antsRegDict[row[0]] = float(row[1])
+
+   mp.bar(range(len(antsRegDict)), antsRegDict.values(), align="center")
+   mp.xticks(range(len(antsRegDict)), antsRegDict.keys())
+   mp.savefig(str(figPrefix) + "_MI.png")
 
 
 
