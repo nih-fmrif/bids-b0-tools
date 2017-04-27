@@ -2,329 +2,74 @@
 
 import time, sys, os
 import csv
-import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
-from   optparse    import OptionParser
+
+# create dataframes from MI csv files
+nc = pd.read_csv('noCorr_MI.csv', names=['subs', 'MI_nc'])
+ae = pd.read_csv('afniBlip_MI.csv', names=['subs', 'MI_ae'])
+ab = pd.read_csv('afniB0_MI.csv', names=['subs', 'MI_ab'])
+fe = pd.read_csv('fslBlip_MI.csv', names=['subs', 'MI_fe'])
+fb = pd.read_csv('fslB0_MI.csv', names=['subs', 'MI_fb'])
+
+# merge all MI columns into a single dataframe
+df_1 = nc.merge(ae, on='subs')
+df_2 = df_1.merge(ab, on='subs')
+df_3 = df_2.merge(fe, on='subs')
+df_m = df_3.merge(fb, on='subs')
+
+# sort new dataframe alphabetically
+df_ms = df_m.sort('subs')
+df_ms['pcMI_ae'] = (df_ms['MI_ae']-df_ms['MI_nc'])*100/(df_ms['MI_nc']) 
+df_ms['pcMI_ab'] = (df_ms['MI_ab']-df_ms['MI_nc'])*100/(df_ms['MI_nc'])
+df_ms['pcMI_fe'] = (df_ms['MI_fe']-df_ms['MI_nc'])*100/(df_ms['MI_nc'])
+df_ms['pcMI_fb'] = (df_ms['MI_fb']-df_ms['MI_nc'])*100/(df_ms['MI_nc'])
+# print df_ms
+
+df_median = pd.DataFrame({'subs': ['median'],
+                          'pcMI_ae': [df_ms['pcMI_ae'].median(axis='index')],
+                          'pcMI_ab': [df_ms['pcMI_ab'].median(axis='index')],
+                          'pcMI_fe': [df_ms['pcMI_fe'].median(axis='index')],
+                          'pcMI_fb': [df_ms['pcMI_fb'].median(axis='index')]})
+
+df_mean   = pd.DataFrame({'subs': ['mean'],
+                          'pcMI_ae': [df_ms['pcMI_ae'].mean(axis='index')],
+                          'pcMI_ab': [df_ms['pcMI_ab'].mean(axis='index')],
+                          'pcMI_fe': [df_ms['pcMI_fe'].mean(axis='index')],
+                          'pcMI_fb': [df_ms['pcMI_fb'].mean(axis='index')]})
+
+df_stdev  = pd.DataFrame({'subs': ['stdev'],
+                          'pcMI_ae': [df_ms['pcMI_ae'].std(axis='index')],
+                          'pcMI_ab': [df_ms['pcMI_ab'].std(axis='index')],
+                          'pcMI_fe': [df_ms['pcMI_fe'].std(axis='index')],
+                          'pcMI_fb': [df_ms['pcMI_fb'].std(axis='index')]})
+
+df_final = df_ms.append([df_median, df_mean, df_stdev])
+print df_final
 
 
-
-def buildDataDict():
-
-   nc = "noCorr_MI.csv"
-   ae = "afniBlip_MI.csv"
-   ab = "afniB0_MI.csv"
-   fe = "fslBlip_MI.csv"
-   fb = "fslB0_MI.csv"
-
-   allDataDict = {}
-
-   with open(nc) as f:
-      ncData = csv.reader(f, delimiter=",")
-      for row in ncData:
-	 allDataDict[row[0]] = [float(row[1])]
-
-   with open(ae) as g:
-      aeData = csv.reader(g, delimiter=",")
-      for row in aeData:
-	 if row[0] in allDataDict.keys():
-            allDataDict[row[0]].append(float(row[1]))
-      for key in allDataDict.keys():
-	 if ( len(allDataDict[key]) < 2 ):
-            allDataDict[key].append(float('nan'))
-
-   with open(ab) as h:
-      abData = csv.reader(h, delimiter=",")
-      for row in abData:
-	 if row[0] in allDataDict.keys():
-            allDataDict[row[0]].append(float(row[1]))
-      for key in allDataDict.keys():
-	 if ( len(allDataDict[key]) < 3 ):
-            allDataDict[key].append(float('nan'))
-
-   with open(fe) as i:
-      feData = csv.reader(i, delimiter=",")
-      for row in feData:
-	 if row[0] in allDataDict.keys():
-            allDataDict[row[0]].append(float(row[1]))
-      for key in allDataDict.keys():
-	 if ( len(allDataDict[key]) < 4 ):
-            allDataDict[key].append(float('nan'))
-
-   with open(fb) as j:
-      fbData = csv.reader(j, delimiter=",")
-      for row in fbData:
-	 if row[0] in allDataDict.keys():
-            allDataDict[row[0]].append(float(row[1]))
-      for key in allDataDict.keys():
-	 if ( len(allDataDict[key]) < 5 ):
-            allDataDict[key].append(float('nan'))
-
-   for key in allDataDict.keys():
-      print str(key) + " " + str(allDataDict[key])
-
-   # busyPlot(allDataDict)
-   # separatedPlots(allDataDict)
-   percentPlots(allDataDict)
+# plot the MI values for each distortion correction technique by subject
+df_final[['MI_nc', 'MI_ae', 'MI_ab', 'MI_fe', 'MI_fb']].plot(kind='bar', grid=False)
+plt.title("Mutual Information for each Correction Technique by Subject")
+plt.xlabel('Subjects')
+plt.ylabel('Mutual Information')
+plt.legend(['MI_nc', 'MI_ae', 'MI_ab', 'MI_fe', 'MI_fb'],
+           labels=['noCorr', 'afniBlip', 'afniB0', 'fslBlip', 'fslB0'],
+	   bbox_to_anchor=(1.05, 1), loc=2, fontsize='small', borderaxespad=0.)
+# plt.ylim(0.14, 0.35)
+plt.savefig("test1.png", bbox_inches='tight')
+# os.system("display test1.png")
 
 
-
-def busyPlot(allDataDict):
-
-   aeAllList = []
-   abAllList = []
-   feAllList = []
-   fbAllList = []
-   nAllList  = []
-
-   for key in allDataDict.keys():
-      if not ( np.isnan(allDataDict[key][1]) or np.isnan(allDataDict[key][2]) or np.isnan(allDataDict[key][3]) or np.isnan(allDataDict[key][4]) ):
-	 aeAllList.append(allDataDict[key][1])
-	 abAllList.append(allDataDict[key][2])
-	 feAllList.append(allDataDict[key][3])
-	 fbAllList.append(allDataDict[key][4])
-	 nAllList.append(allDataDict[key][0])
-
-   ncAllSubs = np.array(list(range(0,len(nAllList))))
-   nAlly     = np.array(nAllList)
-   aeAlly    = np.array(aeAllList)
-   abAlly    = np.array(abAllList)
-   feAlly    = np.array(feAllList)
-   fbAlly    = np.array(fbAllList)
-
-   ### Plot all four corrections on one plot ###
-
-   sns.set_style("darkgrid")
-   plt.plot(ncAllSubs, nAlly, label='No Correction',   color='0.5', linestyle='-', lw=1, marker='.')
-   plt.plot(ncAllSubs, aeAlly, label='3dQwarp (AFNI)', color='r', linestyle='-', lw=1, marker='.')
-   plt.plot(ncAllSubs, feAlly, label='Topup (FSL)',  color='b', linestyle='-', lw=1, marker='.')
-   plt.plot(ncAllSubs, abAlly, label='B0 Tools (AFNI)',   color='g', linestyle='-', lw=1, marker='.')
-   plt.plot(ncAllSubs, fbAlly, label='Fugue (FSL)',    color='m', linestyle='-', lw=1, marker='.')
-   plt.title("Mutual Information after EPI Distortion Corrections")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.15, 0.35)
-   plt.legend(loc='lower left')
-   plt.savefig("cMI1-allTogether.png")
-
-
-
-def separatedPlots(allDataDict):
-
-   ncList  = []
-   aeList  = []
-   naeList = []
-   abList  = []
-   nabList = []
-   feList  = []
-   nfeList = []
-   fbList  = []
-   nfbList = []
-
-   for key in allDataDict.keys():
-      ncList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][1]):
-	 aeList.append(allDataDict[key][1])
-	 naeList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][2]):
-	 abList.append(allDataDict[key][2])
-	 nabList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][3]):
-	 feList.append(allDataDict[key][3])
-	 nfeList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][4]):
-	 fbList.append(allDataDict[key][4])
-	 nfbList.append(allDataDict[key][0])
-
-   ncSubs = np.array(list(range(0,len(ncList))))
-   ncy    = np.array(ncList)
-   aeSubs = np.array(list(range(0,len(naeList))))
-   aey    = np.array(aeList)
-   naey   = np.array(naeList)
-   abSubs = np.array(list(range(0,len(nabList))))
-   aby    = np.array(abList)
-   naby   = np.array(nabList)
-   feSubs = np.array(list(range(0,len(nfeList))))
-   fey    = np.array(feList)
-   nfey   = np.array(nfeList)
-   fbSubs = np.array(list(range(0,len(nfbList))))
-   fby    = np.array(fbList)
-   nfby   = np.array(nfbList)
-
-   ### Plot Blip and B0 on separate subplots  ###
-
-   plt.subplot(211)
-   sns.set_style("darkgrid")
-   plt.plot(aeSubs, naey, label='No Correction',   color='0.5', linestyle='-', lw=1, marker='.')
-   plt.plot(aeSubs, aey, label='3dQwarp (AFNI)', color='r', linestyle='-', lw=1, marker='.')
-   plt.plot(feSubs, fey, label='Topup (FSL)',  color='b', linestyle='-', lw=1, marker='.')
-   plt.title("Mutual Information after Blip Corrections")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-   plt.legend(loc='lower left')
-
-   plt.subplot(212)
-   sns.set_style("darkgrid")
-   plt.plot(abSubs, naby, label='No Correction',   color='0.5', linestyle='-', lw=1, marker='.')
-   plt.plot(abSubs, aby, label='B0 Tools (AFNI)',   color='g', linestyle='-', lw=1, marker='.')
-   plt.plot(fbSubs, fby, label='Fugue (FSL)',    color='m', linestyle='-', lw=1, marker='.')
-   plt.title("Mutual Information after B0 Corrections")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-   plt.legend(loc='lower left')
-
-   plt.tight_layout()
-   plt.savefig("cMI2-blipAndB0.png")
-
-   ### Plot all four corrections on different subplots ###
-
-   plt.subplot(411)
-   sns.set_style("darkgrid")
-   plt.plot(aeSubs, naey, label='No Correction',   color='k', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.plot(aeSubs, aey, label='3dQwarp (AFNI)', color='r', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.title("Mutual Information after 3dQwarp (AFNI) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-
-   plt.subplot(412)
-   sns.set_style("darkgrid")
-   plt.plot(feSubs, naey, label='No Correction',   color='k', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.plot(feSubs, fey, label='Topup (FSL)',  color='r', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.title("Mutual Information after Topup (FSL) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-
-   plt.subplot(413)
-   sns.set_style("darkgrid")
-   plt.plot(abSubs, naby, label='No Correction',   color='k', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.plot(abSubs, aby, label='B0 Tools (AFNI)',   color='r', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.title("Mutual Information after B0 Tools (AFNI) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-
-   plt.subplot(414)
-   sns.set_style("darkgrid")
-   plt.plot(fbSubs, naby, label='No Correction',   color='k', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.plot(fbSubs, fby, label='Fugue (FSL)',    color='r', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.title("Mutual Information after Fugue (FSL) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-
-   plt.tight_layout()
-   plt.savefig("cMI3-allSeparated.png")
-
-
-
-def percentPlots(allDataDict):
-
-   ncList  = []
-   aeList  = []
-   naeList = []
-   abList  = []
-   nabList = []
-   feList  = []
-   nfeList = []
-   fbList  = []
-   nfbList = []
-
-   for key in allDataDict.keys():
-      ncList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][1]):
-         aePC = ((allDataDict[key][1] - allDataDict[key][0])/allDataDict[key][0])*100
-	 aeList.append(aePC)
-	 naeList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][2]):
-	 abPC = ((allDataDict[key][2] - allDataDict[key][0])/allDataDict[key][0])*100
-	 abList.append(abPC)
-	 nabList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][3]):
-         fePC = ((allDataDict[key][3] - allDataDict[key][0])/allDataDict[key][0])*100
-	 feList.append(fePC)
-	 nfeList.append(allDataDict[key][0])
-      if not np.isnan(allDataDict[key][4]):
-         fbPC = ((allDataDict[key][4] - allDataDict[key][0])/allDataDict[key][0])*100
-	 fbList.append(fbPC)
-	 nfbList.append(allDataDict[key][0])
-
-   ncSubs = np.array(list(range(0,len(ncList))))
-   ncy    = np.array(ncList)
-   aeSubs = np.array(list(range(0,len(naeList))))
-   aey    = np.array(aeList)
-   naey   = np.array(naeList)
-   abSubs = np.array(list(range(0,len(nabList))))
-   aby    = np.array(abList)
-   naby   = np.array(nabList)
-   feSubs = np.array(list(range(0,len(nfeList))))
-   fey    = np.array(feList)
-   nfey   = np.array(nfeList)
-   fbSubs = np.array(list(range(0,len(nfbList))))
-   fby    = np.array(fbList)
-   nfby   = np.array(nfbList)
-
-   ### Plot all four corrections on different subplots ###
-
-   # plt.subplot(411)
-   plt.bar(naey, aey)
-   plt.title("Mutual Information after 3dQwarp (AFNI) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-
-   """
-   plt.subplot(412)
-   sns.set_style("darkgrid")
-   plt.plot(feSubs, naey, label='No Correction',   color='k', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.plot(feSubs, fey, label='Topup (FSL)',  color='r', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.title("Mutual Information after Topup (FSL) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-
-   plt.subplot(413)
-   sns.set_style("darkgrid")
-   plt.plot(abSubs, naby, label='No Correction',   color='k', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.plot(abSubs, aby, label='B0 Tools (AFNI)',   color='r', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.title("Mutual Information after B0 Tools (AFNI) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-
-   plt.subplot(414)
-   sns.set_style("darkgrid")
-   plt.plot(fbSubs, naby, label='No Correction',   color='k', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.plot(fbSubs, fby, label='Fugue (FSL)',    color='r', linestyle='-', lw=0.5, marker='.', markersize=2)
-   plt.title("Mutual Information after Fugue (FSL) Correction")
-   plt.xlabel('Subjects')
-   plt.ylabel('MI')
-   plt.ylim(0.1, 0.35)
-
-   plt.tight_layout()
-   """
-
-   plt.savefig("cMI4-percentChange.png")
-
-
-
-def main():
-   
-   usage = "%prog [options]"
-   description = ("Routine to create plots for comparing mutual information outputs from distortionFix.py:")
-
-   usage =       ("  %prog [options]" )
-   epilog =      ("For questions, suggestions, information, please contact Vinai Roopchansingh, Jerry French.")
-
-   parser = OptionParser(usage=usage, description=description, epilog=epilog)
-
-   buildDataDict()
-
-
-
-if __name__ == '__main__':
-   sys.exit(main())
-
-
+# plot the percent change in MI values for each distortion correction
+# technique by subject
+df_final[['pcMI_ae', 'pcMI_ab', 'pcMI_fe', 'pcMI_fb']].plot(kind='bar', grid=False)
+plt.title("Mutual Information for each Correction Technique by Subject")
+plt.xlabel('Subjects')
+plt.ylabel('Percent Change in Mutual Information')
+plt.legend(['pcMI_ae', 'pcMI_ab', 'pcMI_fe', 'pcMI_fb'],
+           labels=['afniBlip', 'afniB0', 'fslBlip', 'fslB0'],
+	   bbox_to_anchor=(1.05, 1), loc=2, fontsize='small', borderaxespad=0.)
+plt.ylim(-15, 25)
+plt.savefig("test2.png", bbox_inches='tight')
+os.system("display test2.png")

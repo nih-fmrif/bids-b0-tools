@@ -46,6 +46,8 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 
       for eachSession in bidsSubjectDict[eachSubject].keys():
 
+         eachSubSes = eachSubject + "_" + eachSession
+
          if "NULL" in eachSession:
             sessLoc = subjLoc
          else:
@@ -58,7 +60,7 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
          blipRevHead = ""
 
          for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
-            
+
             scanTypeLoc = sessLoc + eachScanType + "/"
 
             for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
@@ -69,7 +71,7 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                   anatOrig = runLoc
 
                if blipForRunKey in runLoc:
-                  epiDsets = scanTypeLoc + 'data2Fix' + defaultExt
+                  epiDsets = 'blipRest-' + eachSubSes + defaultExt
                   blipFor = runLoc + '[0..24]'
 
                if blipForRunKey in runLoc:
@@ -79,8 +81,6 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                if blipRevRunKey in runLoc:
                   # blipRevHead = runLoc
                   blipRevHead = runLoc + '[0]' # For data with low contrast in time series
-
-         eachSubSes = eachSubject + "_" + eachSession
 
 	 if not ( (runLoc == "") or (anatOrig == "") or (epiDsets == "") or (blipForHead == "") or (blipRevHead == "") ):
 
@@ -100,15 +100,15 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
                             executeProcs])
 
             # send original T1, original rs-EPI, and fixed rs-EPI to registration step
-	    os.system("3dTcat -prefix epiFixed-" + str(eachSubSes) + str(defaultExt) + " " + str(eachSubSes) + ".results/pb01." + str(eachSubSes) + ".r01.blip+orig.HEAD")
+	    os.system("3dTcat -prefix epiFixed-" + str(eachSubSes) + str(defaultExt) + " " + str(eachSubSes) + ".results/pb01." + str(eachSubSes) + ".r01.blip+orig")
             dsetsInput = "epiFixed-" + eachSubSes + defaultExt
 	    antsReg(anatOrig=anatOrig, blipRest=blipFor, dsetsInput=dsetsInput, eachSubSes=eachSubSes)
 
             # Make results folder and move files created to that folder.
             moveDestInput = eachSubSes + ".results/"
             # os.system ("mkdir " + moveDestInput)
-            moveFilesInput = "*?" + eachSubSes + "*"
-            os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+            moveFilesInput = "*" + eachSubSes + "*"
+            os.system ("mv --no-clobber " + moveFilesInput + " " + moveDestInput)
 
             print str(eachSubSes) + " complete."
             with open("afniBlipUpDownFixLog.txt", "a") as fixFile:
@@ -119,6 +119,10 @@ def afniBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
 	    print str(eachSubSes) + " does not have necessary scans for afniBlipUpDown!"
             with open("afniBlipUpDownFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
+	    antsRegOut = float('NaN')
+            with open("antsRegMetrics.csv", "a") as antsRegCSV:
+               writer = csv.writer(antsRegCSV)
+               writer.writerow([eachSubSes, abs(float(antsRegOut))])
             continue
 
    plotMI(figPrefix="afniBlip")
@@ -189,6 +193,9 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031,
             anatDsetCopyCmd = "3dTcat -prefix anat-" + eachSubSes + defaultExt + " " + anatOrig
 	    os.system (anatDsetCopyCmd)
 
+            # Find the mode of the frequency distribution in the brain and
+            # subtract this value from the field map. This is from potential vendor
+            # offsets in F0.
             freqMode1 = Popen(["3dROIstats", "-nomeanout", "-quiet", "-mask", maskOrig, "-mode", freqOrig], stdout=PIPE)
             freqOut = freqMode1.communicate()[0]
             print "Starting afniB0 for " + str(eachSubSes)
@@ -234,6 +241,10 @@ def afniB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031,
             print str(eachSubSes) + " does not have required scans and/or mask for afniB0!"
             with open("afniB0FixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
+            antsRegOut = float('NaN')
+            with open("antsRegMetrics.csv", "a") as antsRegCSV:
+               writer = csv.writer(antsRegCSV)
+               writer.writerow([eachSubSes, abs(float(antsRegOut))])
             continue
 
    plotMI(figPrefix="afniB0")
@@ -344,6 +355,10 @@ def fslBlipUpDown (bidsTopLevelDir, bidsSubjectDict):
             print str(eachSubSes) + " does not have all the required scans for fslBlipUpDown!"
             with open("fslBlipUpDownFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
+            antsRegOut = float('NaN')
+            with open("antsRegMetrics.csv", "a") as antsRegCSV:
+               writer = csv.writer(antsRegCSV)
+               writer.writerow([eachSubSes, abs(float(antsRegOut))])
             continue
 
    plotMI(figPrefix="fslBlip")
@@ -508,7 +523,11 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
             unwarpKeys = ["",""]
 
             # Input unwarp directions based on best fixed epi by visual inspection
-            unwarpVals = ["",""]
+            unwarpVals = ["x-", "y-", "y-", "y-", "x",
+	                  "x",  "y-", "x-", "x",  "y-", 
+			  "y-", "y-", "y-", "x-", "y-",
+			  "y-", "x-", "x",  "y-", "x-",
+			  "y-", "y-", "y-", "y-", "x-"]
 
             unwarpDict = dict(zip(unwarpKeys, unwarpVals))
 
@@ -546,6 +565,10 @@ def fslB0 (bidsTopLevelDir, bidsSubjectDict, epiPhaseEncodeEchoSpacing=0.00031):
             print str(eachSubSes) + " does not have required scans and/or mask for fslB0!"
             with open("fslB0FixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
+            antsRegOut = float('NaN')
+            with open("antsRegMetrics.csv", "a") as antsRegCSV:
+               writer = csv.writer(antsRegCSV)
+               writer.writerow([eachSubSes, abs(float(antsRegOut))])
             continue
 
    plotMI(figPrefix="fslB0")
@@ -615,9 +638,176 @@ def noCorr (bidsTopLevelDir, bidsSubjectDict):
 	    print str(eachSubSes) + " does not have necessary scans for noCorr!"
             with open("noCorrFixLog.txt", "a") as fixFile:
 	       fixFile.write(str(eachSubSes) + " 0\n")
+            antsRegOut = float('NaN')
+            with open("antsRegMetrics.csv", "a") as antsRegCSV:
+               writer = csv.writer(antsRegCSV)
+               writer.writerow([eachSubSes, abs(float(antsRegOut))])
             continue
 
    plotMI(figPrefix="noCorr")
+
+
+
+def afniStandard (bidsTopLevelDir, bidsSubjectDict):
+
+   t1wRunKey         = "T1w"
+   epiRunKey         = "dir-y_run"
+
+   for eachSubject in bidsSubjectDict.keys():
+
+      subjLoc = bidsTopLevelDir + eachSubject + "/"
+
+      for eachSession in bidsSubjectDict[eachSubject].keys():
+
+         if "NULL" in eachSession:
+            sessLoc = subjLoc
+         else:
+            sessLoc = subjLoc + eachSession + "/"
+
+         runLoc      = ""
+         anatOrig    = ""
+         blipRest    = ""
+
+         for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
+            
+            scanTypeLoc = sessLoc + eachScanType + "/"
+
+            for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
+
+               runLoc = scanTypeLoc + eachRun
+
+               if t1wRunKey in runLoc:
+                  anatOrig = runLoc
+
+               if epiRunKey in runLoc:
+                  blipRest = runLoc + '[0..24]'
+
+         eachSubSes = eachSubject + "_" + eachSession
+
+	 if not ( (runLoc == "") or (anatOrig == "") or (blipRest == "") ):
+
+	    print "Starting afniStandard for " + str(eachSubSes)
+	    restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubSes + defaultExt + " " + blipRest
+            os.system (restDsetCopyCmd)
+            anatDsetCopyCmd = "3dTcat -prefix anat-" + eachSubSes + defaultExt + " " + anatOrig
+	    os.system (anatDsetCopyCmd)
+
+	    print "Starting afni_proc.py for " + str(eachSubSes)
+            executeAndWait(["afni_proc.py", "-subj_id", eachSubSes,
+                            "-copy_anat", anatOrig,
+                            "-dsets", epiDsets,
+                            "-blocks", "align",
+                            "-align_opts_aea",
+			    "-cost", "lpc+ZZ",
+			    giantMoveDict[eachSubSes],
+			    "-volreg_align_e2a",
+                            executeProcs])
+
+            # Make results folder and move files created to that folder.
+            # moveDestInput = eachSubSes + ".results/"
+            # os.system ("mkdir " + moveDestInput)
+            # moveFilesInput = "*?" + eachSubSes + "*"
+            # os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+
+            print str(eachSubSes) + " complete."
+            with open("afniStandardFixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 1\n")
+
+         elif ( (runLoc == "") or (anatOrig == "") or (blipRest == "") ):
+
+	    print str(eachSubSes) + " does not have necessary scans for afniStandard!"
+            with open("afniStandardFixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 0\n")
+            antsRegOut = float('NaN')
+            with open("antsRegMetrics.csv", "a") as antsRegCSV:
+               writer = csv.writer(antsRegCSV)
+               writer.writerow([eachSubSes, abs(float(antsRegOut))])
+            continue
+
+   plotMI(figPrefix="afniStandard")
+
+
+
+def fslStandard (bidsTopLevelDir, bidsSubjectDict):
+
+   t1wRunKey         = "T1w"
+   epiRunKey         = "dir-y_run"
+
+   for eachSubject in bidsSubjectDict.keys():
+
+      subjLoc = bidsTopLevelDir + eachSubject + "/"
+
+      for eachSession in bidsSubjectDict[eachSubject].keys():
+
+         if "NULL" in eachSession:
+            sessLoc = subjLoc
+         else:
+            sessLoc = subjLoc + eachSession + "/"
+
+         runLoc      = ""
+         anatOrig    = ""
+         blipRest    = ""
+
+         for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
+            
+            scanTypeLoc = sessLoc + eachScanType + "/"
+
+            for eachRun in bidsSubjectDict[eachSubject][eachSession][eachScanType]:
+
+               runLoc = scanTypeLoc + eachRun
+
+               if t1wRunKey in runLoc:
+                  anatOrig = runLoc
+
+               if epiRunKey in runLoc:
+                  blipRest = runLoc + '[0..24]'
+
+         eachSubSes = eachSubject + "_" + eachSession
+
+	 if not ( (runLoc == "") or (anatOrig == "") or (blipRest == "") ):
+
+	    print "Starting fslStandard for " + str(eachSubSes)
+	    restDsetCopyCmd = "3dTcat -prefix rest-" + eachSubSes + defaultExt + " " + blipRest
+            os.system (restDsetCopyCmd)
+            anatDsetCopyCmd = "3dTcat -prefix anat-" + eachSubSes + defaultExt + " " + anatOrig
+	    os.system (anatDsetCopyCmd)
+
+            # Skull strip T1w to use in 'epi_reg' step
+	    print "Starting fsl_anat for " + str(eachSubSes)
+            executeAndWait(["fsl_anat", 
+	                    "-i", anatOrig,
+			    "-o", eachSubSes])
+	    
+	    # Register epi to anat
+	    print "Starting epi_reg for " + str(eachSubSes)
+	    executeAndWait(["epi_reg",
+	                    "--epi=" + blipRest,
+	                    "--t1=" + eachSubSes + ".anat/T1.nii.gz",
+			    "--t1brain=" + eachSubSes + ".anat/T1_biascorr_brain.nii.gz",
+			    "--out=epiFixed-" + eachSubSes])
+
+            # Make results folder and move files created to that folder.
+            moveDestInput = eachSubSes + ".results/"
+            os.system ("mkdir " + moveDestInput)
+            moveFilesInput = "*?" + eachSubSes + "*"
+            os.system ("mv -t " + moveDestInput + " " + moveFilesInput)
+
+            print str(eachSubSes) + " complete."
+            with open("fslStandardFixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 1\n")
+
+         elif ( (runLoc == "") or (anatOrig == "") or (blipRest == "") ):
+
+	    print str(eachSubSes) + " does not have necessary scans for fslStandard!"
+            with open("fslStandardFixLog.txt", "a") as fixFile:
+	       fixFile.write(str(eachSubSes) + " 0\n")
+            antsRegOut = float('NaN')
+            with open("antsRegMetrics.csv", "a") as antsRegCSV:
+               writer = csv.writer(antsRegCSV)
+               writer.writerow([eachSubSes, abs(float(antsRegOut))])
+            continue
+
+   plotMI(figPrefix="fslStandard")
 
 
 
@@ -625,20 +815,23 @@ def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
 
    antsReg1 = ("antsRegistration "
                "-d 3 "
-               "-m mi'[" + str(anatOrig) + "," + str(dsetsInput) + ",1,32]' "
+	       "--float "
+               "-o '[fixedReg2T1_" + str(eachSubSes) + "_,fixedReg2T1_" + str(eachSubSes) + ".nii.gz]' "
+               "--use-histogram-matching 1 "
+	       "-r '[" + str(anatOrig) + "," + str(dsetsInput) + ",0]' "
                "-t Rigid'[1]' "
-               "-o '[fixedReg2T1_" + str(eachSubSes) + "_]' "
+	       "-m mi'[" + str(anatOrig) + "," + str(dsetsInput) + ",1,32]' "
                "-s 1x1x1mm "
                "-c '[50x50x50]' "
                "-f 2x2x2")
 
-   antsReg2 = ("antsApplyTransforms "
-               "-d 3 "
-               "-e 3 "
-               "-i " + str(dsetsInput) + " "
-               "-r " + str(anatOrig) + " "
-               "-o fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " "
-               "-t '[fixedReg2T1_" + str(eachSubSes) + "_0GenericAffine.mat,0]'")
+   # antsReg2 = ("antsApplyTransforms "
+   #             "-d 3 "
+   #             "-e 3 "
+   #             "-i " + str(dsetsInput) + " "
+   #             "-r " + str(anatOrig) + " "
+   #             "-o fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " "
+   #             "-t '[fixedReg2T1_" + str(eachSubSes) + "_0GenericAffine.mat,0]'")
 
    # Write ANTs commands to shell script and execute
    with open("antsReg_1_" + str(eachSubSes) + ".csh", "a") as antsRegFile1:
@@ -646,20 +839,20 @@ def antsReg(anatOrig="", blipRest="", dsetsInput="", eachSubSes=""):
    print "Starting ANTs registration for " + str(eachSubSes)
    os.system(antsReg1)
 
-   with open("antsReg_2_" + str(eachSubSes) + ".csh", "a") as antsRegFile2:
-      antsRegFile2.write(antsReg2)
-   print "Applying ANTs registration transformations for " + str(eachSubSes)
-   os.system(antsReg2)
+   # with open("antsReg_2_" + str(eachSubSes) + ".csh", "a") as antsRegFile2:
+   #    antsRegFile2.write(antsReg2)
+   # print "Applying ANTs registration transformations for " + str(eachSubSes)
+   # os.system(antsReg2)
 
-   os.system("3dTstat -prefix meanTS_fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " " + "fixedReg2T1_" + str(eachSubSes) + str(defaultExt))
+   os.system("3dTstat -prefix meanTS_fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " " + "fixedReg2T1_" + str(eachSubSes) + ".nii.gz")
 
    # Collect and write registration metrics to file
    antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
-                          "Mattes", anatOrig, "meanTS_fixedReg2T1_" + str(eachSubSes) + str(defaultExt)], 
+                          "Mattes", anatOrig, "meanTS_fixedReg2T1_" + str(eachSubSes) + ".nii.gz"], 
 			  stdout=PIPE)
    antsRegOut = antsRegMetric.communicate()[0]
    if (antsRegOut == ""):
-      antsRegOut = float('nan')
+      antsRegOut = float('NaN')
    with open("antsRegMetrics.csv", "a") as antsRegCSV:
       writer = csv.writer(antsRegCSV)
       writer.writerow([eachSubSes, abs(float(antsRegOut))])
@@ -719,10 +912,14 @@ def main():
    parser.add_option ("-f", "--fsl",      action="store_false", dest="software", default=True,
                                           help="Alternative to -a, runs distortion correction using FSL")
    
-   parser.add_option ("-e", "--epiFmaps", action="store_true", dest="scan", default=True,
+   parser.add_option ("-e", "--epiBlip",  action="store_true", dest="scan", default=True,
                                           help="DEFAULT, inputs are Reverse Blip Epi Scans")
    parser.add_option ("-b", "--B0Fmaps",  action="store_false", dest="scan", default=True,
                                           help="Alternative to -e, inputs are B0 Field Maps")
+
+   parser.add_option ("-s", "--stand",    action="store_true", dest="stand", default=False,
+                                          help="Option to run the standard procedure for disortion correction \
+					        from either AFNI or FSL. Do not use with -e or -b options")
 
    parser.add_option ("-n", "--noCorr",   action="store_true", dest="corr", default=False,
                                           help="Option to register T1 to rsEPI without distortion correction")
@@ -744,7 +941,7 @@ def main():
 
    bidsDict = bidsToolsFS().buildBIDSDict(options.dataDir)
 
-   if (not options.corr and not options.mask):
+   if not (options.corr or options.mask or options.stand):
 
       if (options.software and options.scan):
          print "Starting distortion correction using AFNI's BLIP-UP/DOWN TOOLS"
@@ -761,6 +958,14 @@ def main():
       if (not options.software and not options.scan):
          print "Starting distortion correction using FSL's FUGUE"
          fslB0 (options.dataDir, bidsDict, options.esp)
+
+   if (options.stand and options.software):
+      print "Starting distortion correction using AFNI's Standard Procedure"
+      afniStandard (options.dataDir, bidsDict)
+
+   if (options.stand and not options.software):
+      print "Starting distortion correction using FSL's Standard Procedure"
+      fslStandard (options.dataDir, bidsDict)
 
    if (options.mask):
       print "Starting B0 MASK CREATION for use in B0 corrections"
