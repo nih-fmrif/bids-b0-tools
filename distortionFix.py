@@ -379,15 +379,18 @@ def antsReg(eachSubSes="", corrMethod=""):
    if (checkAllUnwarpDirs):
       if (corrMethod == 'fb'):
 	 testUnwarps = ["x", "x-", "y", "y-"]
+	 subjDirID = str(testUnwarp) + "_" + str(eachSubSes)
       elif (corrMethod == 'ab'):
 	 testUnwarps = ["AP_1.0", "AP_-1.0", "RL_1.0", "RL_-1.0"]
+	 subjDirID = str(testUnwarp) + "_" + str(eachSubSes)
       else:
          testUnwarps = [""]
+	 subjDirID = str(eachSubSes)
    else:
       testUnwarps = [""]
+      subjDirID = str(eachSubSes)
 
    for testUnwarp in testUnwarps:
-      subjDirID = str(testUnwarp) + "_" + str(eachSubSes)
       if corrMethod in ('ae', 'ab', 'fe', 'fb', 'nc'):
          if eachSubSes in dataNeedingGiantMove:
 	    print "Adding histogram matching and initial moving transform for " + str(subjDirID)
