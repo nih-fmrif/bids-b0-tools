@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
-import time, sys, os
+import time, sys, os, glob
 import csv
-import matplotlib.pyplot as mp
+import pandas as pd
+import matplotlib.pyplot as plt
 from   subprocess  import Popen, PIPE, STDOUT
 from   optparse    import OptionParser
 from   bidsFSUtils import bidsToolsFS
@@ -136,7 +137,7 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
                fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=False)
 	       continue
 
-         if ( (corrMethod == "as") or (corrMethod == "fs") or (corrMethod == "n") ):
+         if ( (corrMethod == "as") or (corrMethod == "fs") or (corrMethod == "nc") ):
 	    if not ( (runLoc == "") or (anatOrig == "") or (epiRestOrig == "") ):
 	       copyOrigs (eachSubSes=eachSubSes, anatOrig=anatOrig, epiRestOrig=epiRestOrig)
 	       if (corrMethod == "as"):
@@ -159,8 +160,22 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
 
          if not os.path.exists(eachSubSes + ".results/"):
 	    os.system ("mkdir " + eachSubSes + ".results/")
-
          os.system ("mv --no-clobber *" + eachSubSes + "* " + eachSubSes + ".results/")
+
+   # When testing for the best unwarp direction (ie. checkAllUnwarpDirs = True) with B0 functions.
+   if (checkAllUnwarpDirs) and (corrMethod in ('ab', 'fb')):
+      df = pd.concat([pd.read_csv(f, index_col='sub') for f in glob.glob('*.csv')], axis=1, join='outer').sort()
+
+      # For each successful session, plot the MI for all unwarp directions for each session.
+      df[df.columns].plot(kind='bar', grid=False)
+      plt.legend(df.columns, labels=df.columns, bbox_to_anchor=(1.05, 1), loc=2, fontsize='small', borderaxespad=0.)
+      plt.ylim(df.values.min()-0.01, df.values.max()+0.01)
+      plt.savefig(str(corrMethod) + "_unwarpPlot.png", bbox_inches='tight')
+
+      # Next, record the best unwarp direction for each session to a text file.
+      # This info can then be used to build the global 'afniUnwarpVals' or 'fslUnwarpVals' lists (see above).
+      with open("bestUnwarpDirs.txt", "a") as bestUnwarpFile:
+	 bestUnwarpFile.write(str(df.T.idxmax(axis=0)))
 
 
 
@@ -178,13 +193,15 @@ def fixLog (eachSubSes="", corrMethod="", logNum=""):
       with open(str(corrMethod) + "FixLog.txt", "a") as fixFile:
          fixFile.write(str(eachSubSes) + " 1\n")
 
-   if not (logNum):
-      print str(eachSubSes) + " does not have necessary scans for the selected correction method!"
+   else:
+      print str(eachSubSes) + " does not have necessary scans for the selected correction method (" + str(corrMethod) + ")!"
       with open(str(corrMethod) + "FixLog.txt", "a") as fixFile:
 	 fixFile.write(str(eachSubSes) + " 0\n")
-      with open(str(corrMethod) + "_MI.csv", "a") as antsRegCSV:
-	 writer = csv.writer(antsRegCSV)
-	 writer.writerow([eachSubSes, float('NaN')])
+
+      if not ( (checkAllUnwarpDirs) and (corrMethod in ('ab', 'fb')) ):
+	 with open(str(corrMethod) + "_MI.csv", "a") as antsRegCSV:
+	    writer = csv.writer(antsRegCSV)
+	    writer.writerow([eachSubSes, float('NaN')])
 
 
 
@@ -361,28 +378,28 @@ def antsReg(eachSubSes="", corrMethod=""):
 
    if (checkAllUnwarpDirs):
       if (corrMethod == 'fb'):
-	 testUnwarps = ["x_", "x-_", "y_", "y-_"]
+	 testUnwarps = ["x", "x-", "y", "y-"]
       elif (corrMethod == 'ab'):
-	 testUnwarps = ["AP_1.0_", "AP_-1.0_", "RL_1.0_", "RL_-1.0_"]
+	 testUnwarps = ["AP_1.0", "AP_-1.0", "RL_1.0", "RL_-1.0"]
       else:
          testUnwarps = [""]
    else:
       testUnwarps = [""]
 
    for testUnwarp in testUnwarps:
-      subjDirID = str(testUnwarp) + str(eachSubSes)
+      subjDirID = str(testUnwarp) + "_" + str(eachSubSes)
       if corrMethod in ('ae', 'ab', 'fe', 'fb', 'nc'):
          if eachSubSes in dataNeedingGiantMove:
-	    print "Adding histogram matching and initial moving transform for " + str(eachSubSes) + " in " + str(testUnwarp) + " direction"
+	    print "Adding histogram matching and initial moving transform for " + str(subjDirID)
             # antsRegistration adapted from https://github.com/stnava/ANTs/wiki/Anatomy-of-an-antsRegistration-call
 	    antsReg1 = ("antsRegistration "
         		"-d 3 "
 			"--float "
-        		"--output '[fixedReg2T1_" + subjDirID + "_,fixedReg2T1_" + subjDirID + ".nii.gz]' "
+        		"--output '[fixedReg2T1_" + subjDirID + "_,fixedReg2T1_" + subjDirID + ".nii]' "
         		"--use-histogram-matching 0 "
-			"--initial-moving-transform '[anat-" + str(eachSubSes) + ".nii,epiFixed-" + subjDirID + ".nii,0]' "
+			"--initial-moving-transform '[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,0]' "
         		"--transform Rigid'[0.1]' "
-			"--metric MI'[anat-" + str(eachSubSes) + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
+			"--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
         		"--convergence '[1000x500x250x100]' "
         		"--shrink-factors 8x4x2x1 "
         		"--smoothing-sigmas 1.5x1.5x1.5x0vox")
@@ -393,13 +410,13 @@ def antsReg(eachSubSes="", corrMethod=""):
 	    os.system(antsReg1)
 
 	 else:
-	    print "No histogram matching and initial moving transform needed for " + str(eachSubSes) + " in " + str(testUnwarp) + " direction"
+	    print "No histogram matching and initial moving transform needed for " + str(subjDirID)
 	    antsReg1 = ("antsRegistration "
         		"-d 3 "
 			"--float "
         		"--output '[fixedReg2T1_" + subjDirID + "_]' "
         		"--transform Rigid'[0.1]' "
-			"--metric MI'[anat-" + str(eachSubSes) + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
+			"--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
         		"--convergence '[1000x500x250x100]' "
         		"--shrink-factors 8x4x2x1 "
         		"--smoothing-sigmas 1.5x1.5x1.5x0vox")
@@ -408,8 +425,8 @@ def antsReg(eachSubSes="", corrMethod=""):
         		"-d 3 "
         		"-e 3 "
         		"-i epiFixed-" + subjDirID + ".nii "
-        		"-r anat-" + str(eachSubSes) + ".nii "
-        		"-o fixedReg2T1_" + subjDirID + str(defaultExt) + " "
+        		"-r anat-" + eachSubSes + ".nii "
+        		"-o fixedReg2T1_" + subjDirID + defaultExt + " "
         		"-t '[fixedReg2T1_" + subjDirID + "_0GenericAffine.mat,0]'")
 
 	    # Write ANTs commands to shell script and execute
@@ -422,20 +439,27 @@ def antsReg(eachSubSes="", corrMethod=""):
 	    os.system(antsReg2)
 
       # generate mean time series image of corrected+registered EPI
-      os.system("antsMotionCorr -d 3 -a fixedReg2T1_" + subjDirID + ".nii -o meanTS_fixedReg2T1_" + subjDirID + str(defaultExt))
+      os.system("antsMotionCorr -d 3 -a fixedReg2T1_" + subjDirID + ".nii -o meanTS_fixedReg2T1_" + subjDirID + defaultExt)
 
       # begin calculating MI
       print "Gathering and documenting MI for " + str(eachSubSes)
       antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
-                             "Mattes", "anat-" + str(eachSubSes) + ".nii", "meanTS_fixedReg2T1_" + subjDirID + ".nii"], 
+                             "Mattes", "anat-" + eachSubSes + ".nii", "meanTS_fixedReg2T1_" + subjDirID + ".nii"], 
 			     stdout=PIPE)
       antsRegOut = antsRegMetric.communicate()[0]
       if (antsRegOut == ""):
 	 antsRegOut = float('NaN')
 
-      with open(str(corrMethod) + str(testUnwarp) + "_MI.csv", "a") as antsRegCSV:
-	 writer = csv.writer(antsRegCSV)
-	 writer.writerow([eachSubSes, abs(float(antsRegOut))])
+
+      if os.path.exists(str(testUnwarp) + "_" + str(corrMethod) + "MI.csv"):
+	 with open(str(testUnwarp) + "_" + str(corrMethod) + "MI.csv", "a") as antsRegCSV:
+	    writer = csv.writer(antsRegCSV)
+	    writer.writerow([eachSubSes, abs(float(antsRegOut))])
+      else:
+	 with open(str(testUnwarp) + "_" + str(corrMethod) + "MI.csv", "a") as antsRegCSV:
+	    writer = csv.writer(antsRegCSV)
+	    writer.writerow(['sub', str(testUnwarp) + str(corrMethod)])
+	    writer.writerow([eachSubSes, abs(float(antsRegOut))])
 
 
 
@@ -446,7 +470,7 @@ def afniStandard (eachSubSes=""):
    print "Starting afniStandard for " + str(eachSubSes)
 
    executeAndWait(["afni_proc.py", "-subj_id", eachSubSes,
-                   "-copy_anat", anatOrig,
+                   "-copy_anat", "anat-" + eachSubSes + defaultExt,
                    "-dsets",  "epiRest-" + eachSubSes + defaultExt,
                    "-blocks", "align",
                    "-align_opts_aea",
