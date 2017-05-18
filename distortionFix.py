@@ -379,18 +379,20 @@ def antsReg(eachSubSes="", corrMethod=""):
    if (checkAllUnwarpDirs):
       if (corrMethod == 'fb'):
 	 testUnwarps = ["x", "x-", "y", "y-"]
-	 subjDirID = str(testUnwarp) + "_" + str(eachSubSes)
       elif (corrMethod == 'ab'):
 	 testUnwarps = ["AP_1.0", "AP_-1.0", "RL_1.0", "RL_-1.0"]
-	 subjDirID = str(testUnwarp) + "_" + str(eachSubSes)
       else:
          testUnwarps = [""]
-	 subjDirID = str(eachSubSes)
    else:
       testUnwarps = [""]
-      subjDirID = str(eachSubSes)
 
    for testUnwarp in testUnwarps:
+
+      if (checkAllUnwarpDirs) and ( corrMethod in ('ab', 'fb') ):
+         subjDirID = str(testUnwarp) + "_" + str(eachSubSes)
+      else:
+         subjDirID = str(eachSubSes)
+
       if corrMethod in ('ae', 'ab', 'fe', 'fb', 'nc'):
          if eachSubSes in dataNeedingGiantMove:
 	    print "Adding histogram matching and initial moving transform for " + str(subjDirID)
@@ -457,14 +459,14 @@ def antsReg(eachSubSes="", corrMethod=""):
       # correction option and 'checkAllUnwarpDirs' setting
 
       if (checkAllUnwarpDirs) and ( corrMethod in ('ab', 'fb') ):
-	 if os.path.exists(str(subjDirID) + "_MI.csv"):
-	    with open(str(subjDirID) + "_MI.csv", "a") as antsRegCSV:
+	 if os.path.exists(str(corrMethod) + "_" + str(testUnwarp) + "_MI.csv"):
+	    with open(str(corrMethod) + "_" + str(testUnwarp) + "_MI.csv", "a") as antsRegCSV:
 	       writer = csv.writer(antsRegCSV)
 	       writer.writerow([eachSubSes, abs(float(antsRegOut))])
 	 else:
-	    with open(str(subjDirID) + "_MI.csv", "a") as antsRegCSV:
+	    with open(str(corrMethod) + "_" + str(testUnwarp) + "_MI.csv", "a") as antsRegCSV:
 	       writer = csv.writer(antsRegCSV)
-	       writer.writerow(['sub', str(subjDirID)])
+	       writer.writerow(['sub', str(corrMethod) + "_" + str(testUnwarp)])
 	       writer.writerow([eachSubSes, abs(float(antsRegOut))])
       else:
 	 if os.path.exists(str(corrMethod) + "_MI.csv"):
