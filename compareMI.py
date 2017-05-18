@@ -15,44 +15,40 @@ print "file list is " + str(sys.argv[1:])
 # create dataframe
 df = pd.concat([pd.read_csv(f, index_col='sub') for f in sys.argv[1:]], axis=1, join='outer')
 
-# remove all rows with NaN in nc, ae, and fe
-# df = df[np.isfinite(df['nc']+df['ae']+df['fe'])].sort()
-df = df[np.isfinite(df['nc']+df['fby'])].sort()
-
 # create new columns for percent changes from noCorr
 for corr in [corrMeth for corrMeth in df.columns if corrMeth != 'nc']:
    df[corr] = (df[corr]-df['nc'])*100/df['nc']
 
-corrMeans = {}
-corrMeds = {}
-corrStd = {}
+# print df.info()
+print df.describe()
 
-for corr in df.columns:
-   corrMeans.update ({corr : df[corr].mean()})
-   corrMeds.update  ({corr : df[corr].median()})
-   corrStd.update   ({corr : df[corr].std()})
+# Cannot append directly on to original df as we append to it, as the appended rows will affect
+# computed statistics.  Make an empty data frame (df1) matching original (with "index=..."),
+# append to this new frame, based on statistics computed from original frame.
 
-df2 = pd.Series(corrMeans.values(), index=corrMeans.keys(), name='mean')
-df3 = pd.Series(corrMeds.values(),  index=corrMeds.keys(),  name='median')
-df4 = pd.Series(corrStd.values(),   index=corrStd.keys(),   name='std')
-df = df.append(df2)
-df = df.append(df3)
-df = df.append(df4)
+df1 = pd.DataFrame(columns=df.columns)
+df1 = df1.append(pd.Series([df[corr].mean()   for corr in df.columns], index=df.columns, name='mean'))
+df1 = df1.append(pd.Series([df[corr].median() for corr in df.columns], index=df.columns, name='median'))
+df1 = df1.append(pd.Series([df[corr].std()    for corr in df.columns], index=df.columns, name='std'))
+
+
+# Then append new data frame to original for plotting and display
+df  = df.append (df1)
 
 print df
-print df.info()
-# print df.describe()
+
+# remove all rows with NaN in nc, ae, and fe
+df = df[np.isfinite(df['nc']+df['ae']+df['fe'])].sort()
+# df = df[np.isfinite(df['nc']+df['fby_'])].sort()
 
 # plot the MI values for each distortion correction technique by subject
 df[df.columns].plot(kind='bar', grid=False)
 plt.title("Mutual Information for each Correction Technique by Subject")
 plt.xlabel('Subjects')
 plt.ylabel('Mutual Information')
-# plt.legend(['MI_nc', 'MI_ae', 'MI_ab', 'MI_fe', 'MI_fb'],
-#            labels=['noCorr', 'afniBlip', 'afniB0', 'fslBlip', 'fslB0'],
-#            bbox_to_anchor=(1.05, 1), loc=2, fontsize='small', borderaxespad=0.)
-plt.ylim(-5, 5)
+plt.legend(df.columns, labels=df.columns, bbox_to_anchor=(1.05, 1), loc=2, fontsize='small', borderaxespad=0.)
+plt.ylim(-15, 15)
 plt.savefig("test1.png", bbox_inches='tight')
-os.system("display test1.png")
+os.system("display test1.png &")
 
 
