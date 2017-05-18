@@ -450,16 +450,29 @@ def antsReg(eachSubSes="", corrMethod=""):
       if (antsRegOut == ""):
 	 antsRegOut = float('NaN')
 
+      # write csv files with naming conventions specific to the 
+      # correction option and 'checkAllUnwarpDirs' setting
 
-      if os.path.exists(str(testUnwarp) + "_" + str(corrMethod) + "MI.csv"):
-	 with open(str(testUnwarp) + "_" + str(corrMethod) + "MI.csv", "a") as antsRegCSV:
-	    writer = csv.writer(antsRegCSV)
-	    writer.writerow([eachSubSes, abs(float(antsRegOut))])
+      if (checkAllUnwarpDirs) and ( corrMethod in ('ab', 'fb') ):
+	 if os.path.exists(str(subjDirID) + "_MI.csv"):
+	    with open(str(subjDirID) + "_MI.csv", "a") as antsRegCSV:
+	       writer = csv.writer(antsRegCSV)
+	       writer.writerow([eachSubSes, abs(float(antsRegOut))])
+	 else:
+	    with open(str(subjDirID) + "_MI.csv", "a") as antsRegCSV:
+	       writer = csv.writer(antsRegCSV)
+	       writer.writerow(['sub', str(subjDirID)])
+	       writer.writerow([eachSubSes, abs(float(antsRegOut))])
       else:
-	 with open(str(testUnwarp) + "_" + str(corrMethod) + "MI.csv", "a") as antsRegCSV:
-	    writer = csv.writer(antsRegCSV)
-	    writer.writerow(['sub', str(testUnwarp) + str(corrMethod)])
-	    writer.writerow([eachSubSes, abs(float(antsRegOut))])
+	 if os.path.exists(str(corrMethod) + "_MI.csv"):
+	    with open(str(corrMethod) + "_MI.csv", "a") as antsRegCSV:
+	       writer = csv.writer(antsRegCSV)
+	       writer.writerow([eachSubSes, abs(float(antsRegOut))])
+	 else:
+	    with open(str(corrMethod) + "_MI.csv", "a") as antsRegCSV:
+	       writer = csv.writer(antsRegCSV)
+	       writer.writerow(['sub', str(corrMethod)])
+	       writer.writerow([eachSubSes, abs(float(antsRegOut))])
 
 
 
