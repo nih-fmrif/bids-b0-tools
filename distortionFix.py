@@ -33,7 +33,7 @@ for subj in allData:
 
 # checkAllUnwarpDirs = True will align all unwarp directions in afniB0 and fslB0 functions using ANTs
 # checkAllUnwarpDirs = False will only align unwarp directions defined in afniUnwarpVals and fslUnwarpVals
-checkAllUnwarpDirs = True
+checkAllUnwarpDirs = False
 
 # Complete list of subjects with all scans for B0 corrections
 unwarpKeys = ["sub-02_ses-01", "sub-07_ses-04", "sub-08_ses-02", "sub-09_ses-03", "sub-15_ses-02",
@@ -50,11 +50,11 @@ fslUnwarpVals = ["x-", "y-", "y-", "y-", "x",
 	         "y-", "y-", "y-", "y-", "x-"]
 fslUnwarpDict = dict(zip(unwarpKeys, fslUnwarpVals))
 
-afniUnwarpVals = ["AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
-                  "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
-		  "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
-		  "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
-		  "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0"]
+afniUnwarpVals = ["AP_-1.0", "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0",
+                  "AP_-1.0", "RL_1.0",  "AP_-1.0", "AP_-1.0", "RL_-1.0",
+		  "AP_-1.0", "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0",
+		  "RL_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
+		  "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0", "RL_1.0"]
 afniUnwarpDict = dict(zip(unwarpKeys, afniUnwarpVals))
 
 
@@ -499,7 +499,7 @@ def afniStandard (eachSubSes=""):
 
    os.system("3dTcat -prefix fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " " + str(eachSubSes) + ".results/pb01." + str(eachSubSes) + ".r01.blip+orig")
 
-   antsReg(eachSubSes=eachSubSes, corrMethod="fs")
+   antsReg(eachSubSes=eachSubSes, corrMethod="as")
 
 
 
@@ -512,7 +512,7 @@ def fslStandard (eachSubSes=""):
    # Skull strip T1w to use in 'epi_reg' step
    print "Starting fsl_anat for " + str(eachSubSes)
    executeAndWait(["fsl_anat", 
-	           "-i", anatOrig,
+	           "-i", "anat-" + eachSubSes + defaultExt,
 		   "-o", eachSubSes])
 
    # Register epi to anat
