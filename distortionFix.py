@@ -24,12 +24,6 @@ for sub in allSub:
 # List of subjects with poor initial alignment of epi and anat
 dataNeedingGiantMove = ["sub-09_ses-03", "sub-12_ses-02", "sub-14_ses-02", "sub-18_ses-04", "sub-25_ses-01",
                         "sub-28_ses-01", "sub-28_ses-02", "sub-32_ses-02", "sub-36_ses-01", "sub-37_ses-02"]
-giantMoveDict = dict()
-for subj in allData:
-   if subj in dataNeedingGiantMove:
-      giantMoveDict.update({subj: "-giant_move"})
-   else:
-      giantMoveDict.update({subj: ""})
 
 # checkAllUnwarpDirs = True will align all unwarp directions in afniB0 and fslB0 functions using ANTs
 # checkAllUnwarpDirs = False will only align unwarp directions defined in afniUnwarpVals and fslUnwarpVals
@@ -487,17 +481,25 @@ def antsReg(eachSubSes="", corrMethod=""):
 def afniStandard (eachSubSes=""):
    print "Starting afniStandard for " + str(eachSubSes)
 
-   executeAndWait(["afni_proc.py", "-subj_id", eachSubSes,
-                   "-copy_anat", "anat-" + eachSubSes + defaultExt,
-                   "-dsets",  "epiRest-" + eachSubSes + defaultExt,
-                   "-blocks", "align",
-                   "-align_opts_aea",
-		   "-cost", "lpc+ZZ",
-		   giantMoveDict[eachSubSes],
-		   "-volreg_align_e2a",
-                   "-execute"])
+   if eachSubSes in dataNeedingGiantMove:
+      executeAndWait(["align_epi_anat.py", 
+		      "-anat", "anat-" + eachSubSes + defaultExt,
+                      "-epi", "epiRest-" + eachSubSes + defaultExt,
+                      "-epi2anat",
+                      "-epi_base", "1",
+		      "-volreg_method", "3dAllineate",
+		      "-giant_move",
+		      "-tshift", "off"])
+   else:
+      executeAndWait(["align_epi_anat.py", 
+		      "-anat", "anat-" + eachSubSes + defaultExt,
+                      "-epi", "epiRest-" + eachSubSes + defaultExt,
+                      "-epi2anat",
+                      "-epi_base", "1",
+		      "-volreg_method", "3dAllineate",
+		      "-tshift", "off"])
 
-   os.system("3dTcat -prefix fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " " + str(eachSubSes) + ".results/pb01." + str(eachSubSes) + ".r01.blip+orig")
+   os.system("3dTcat -prefix fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " epiRest-" + str(eachSubSes) + "_al+orig")
 
    antsReg(eachSubSes=eachSubSes, corrMethod="as")
 
@@ -522,6 +524,8 @@ def fslStandard (eachSubSes=""):
 	           "--t1=" + eachSubSes + ".anat/T1.nii.gz",
 		   "--t1brain=" + eachSubSes + ".anat/T1_biascorr_brain.nii.gz",
 		   "--out=fixedReg2T1_" + eachSubSes])
+
+   os.system("gzip -d fixedReg2T1_*.nii.gz")
 
    antsReg(eachSubSes=eachSubSes, corrMethod="fs")
 

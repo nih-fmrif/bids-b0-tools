@@ -39,7 +39,7 @@ print df
 
 # remove all rows with NaN in nc, ae, and fe
 df = df[np.isfinite(df['nc']+df['ae']+df['fe'])].sort()
-# df = df[np.isfinite(df['nc']+df['fby_'])].sort()
+# df = df[np.isfinite(df['nc']+df['ab_AP_-1.0'])].sort()
 
 # plot the MI values for each distortion correction technique by subject
 df[df.columns].plot(kind='bar', grid=False)
@@ -47,7 +47,7 @@ plt.title("Mutual Information for each Correction Technique by Subject")
 plt.xlabel('Subjects')
 plt.ylabel('Mutual Information')
 plt.legend(df.columns, labels=df.columns, bbox_to_anchor=(1.05, 1), loc=2, fontsize='small', borderaxespad=0.)
-plt.ylim(-15, 15)
+plt.ylim(-15, 25)
 plt.savefig("test1.png", bbox_inches='tight')
 os.system("display test1.png &")
 
