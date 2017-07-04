@@ -1,11 +1,7 @@
 #!/bin/tcsh
 
 setenv PATH /usr/local/slurm/bin:{$PATH}
-setenv PYTHONPATH /gpfs/gsfs6/users/PdnData/distortionCorrectionStudy/BIDS-tools
-
-module load ANTs
-module load fsl
-module load afni/current-openmp
+setenv PYTHONPATH /data/PdnData/distortionCorrectionStudy/BIDS-tools
 
 if( $#argv < 2 ) then
   echo " "
@@ -40,7 +36,9 @@ endif
 # set BIDS-tools and bidsFormatData directory locations
 
 set dfpy    = "../../BIDS-tools/distortionFix.py"
-set datadir = "../../bidsFormatData/"
+# for testing with a smaller number of subjects
+set datadir = "../../exampleSubjects/"
+# set datadir = "../../bidsFormatData/"
 
 # create working directory using 'suffix' from command line
 
@@ -64,7 +62,12 @@ foreach corr ( $argv[2-] )
 
    # create a batch tcsh script for each correction
 
-   echo "sbatch --time=10-00:00:00 \" >! sbatch_$corr.csh
+   echo "module load ANTs" >! sbatch_$corr.csh
+   echo "module load fsl" >>! sbatch_$corr.csh
+   echo "module load afni/current-openmp" >>! sbatch_$corr.csh
+
+   echo "source /data/PdnData/distortionCorrectionStudy/venvWithPyFS/bin/activate.csh" >>! sbatch_$corr.csh
+   echo "sbatch --time=10-00:00:00 \" >>! sbatch_$corr.csh
    echo "       --mem=32g \" >>! sbatch_$corr.csh
    echo "       --partition nimh,norm \" >>! sbatch_$corr.csh
    echo "       --cpus-per-task=8 \" >>! sbatch_$corr.csh

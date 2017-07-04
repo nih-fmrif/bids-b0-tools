@@ -54,13 +54,14 @@ afniUnwarpDict = dict(zip(unwarpKeys, afniUnwarpVals))
 
 def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0):
 
-   t1wRunKey         = "T1w"
+   t1wRunKey         = "T1w."
    epiRestRunKey     = "dir-y_run"
    epiBlipForRunKey  = "dir-y_run"
    epiBlipRevRunKey  = "dir-y-_run"
    magRunKey         = "magnitude"
    freqRunKey        = "frequency"
    maskRunKey        = "magUFMask"
+   t1wSSRunKey       = "T1w_skull_stripped"
 
    for eachSubject in bidsSubjectDict.keys():
       subjLoc = bidsTopLevelDir + eachSubject + "/"
@@ -80,6 +81,7 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
          magOrig         = ""
          freqOrig        = ""
          maskOrig        = ""
+         anatSS          = ""
 
          for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
             scanTypeLoc = sessLoc + eachScanType + "/"
@@ -102,6 +104,8 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
                   freqOrig = runLoc
                if maskRunKey in runLoc:
                   maskOrig = runLoc
+               if t1wSSRunKey in runLoc:
+                  anatSS = runLoc
 
          # Perform distortion correction method 'corrMethod' if session contains the necessary files
 
