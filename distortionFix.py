@@ -52,6 +52,9 @@ afniUnwarpVals = ["AP_-1.0", "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0",
 afniUnwarpDict = dict(zip(unwarpKeys, afniUnwarpVals))
 
 
+
+
+
 def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0):
 
    t1wRunKey         = "T1w."
@@ -82,6 +85,7 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
          freqOrig        = ""
          maskOrig        = ""
          anatSS          = ""
+         logNum          = False
 
          for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
             scanTypeLoc = sessLoc + eachScanType + "/"
@@ -116,10 +120,9 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
 	          afniBlipUpDown(eachSubSes=eachSubSes, epiBlipForOrig=epiBlipForOrig, epiBlipRevOrig=epiBlipRevOrig)
                else:
 	          fslBlipUpDown(eachSubSes=eachSubSes, epiBlipForOrig=epiBlipForOrig, epiBlipRevOrig=epiBlipRevOrig)
-	       fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=True)
+	       logNum = True
 	    else:
-               fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=False)
-	       continue
+	       logNum = False
 
          if ( (corrMethod == "ab") or (corrMethod == "fb") ):
             if (maskOrig == ""):
@@ -130,10 +133,9 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
                   afniB0(eachSubSes=eachSubSes, magOrig=magOrig, freqOrig=freqOrig, maskOrig=maskOrig, epiPhaseEncodeEchoSpacing=epiPhaseEncodeEchoSpacing, epiPhaseFOV=epiPhaseFOV)
                else:
                   fslB0(eachSubSes=eachSubSes, magOrig=magOrig, freqOrig=freqOrig, maskOrig=maskOrig, epiPhaseEncodeEchoSpacing=epiPhaseEncodeEchoSpacing, epiPhaseFOV=epiPhaseFOV)
-	       fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=True)
+	       logNum = True
 	    else:
-               fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=False)
-	       continue
+	       logNum = False
 
          if ( (corrMethod == "as") or (corrMethod == "fs") or (corrMethod == "nc") ):
 	    if not ( (runLoc == "") or (anatOrig == "") or (epiRestOrig == "") ):
@@ -144,10 +146,9 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
 	          fslStandard(eachSubSes=eachSubSes)
                else:
 	          noCorr(eachSubSes=eachSubSes)
-               fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=True)
+	       logNum = True
 	    else:
-               fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=False)
-	       continue
+	       logNum = False
 
          if (corrMethod == "m"):
 	    if not ( (runLoc == "") or (magOrig == "") ):
@@ -155,6 +156,10 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
 	    else:
                fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=False)
 	       continue
+         else:
+            antsReg(eachSubSes=eachSubSes, corrMethod=corrMethod)
+            fixLog(eachSubSes=eachSubSes, corrMethod=corrMethod, logNum=logNum)
+
 
          if not os.path.exists(eachSubSes + ".results/"):
 	    os.system ("mkdir " + eachSubSes + ".results/")
@@ -218,7 +223,6 @@ def afniBlipUpDown (eachSubSes="", epiBlipForOrig="", epiBlipRevOrig=""):
 
    # send original T1, original rs-EPI, and fixed rs-EPI to registration step
    os.system("3dTcat -prefix epiFixed-" + str(eachSubSes) + str(defaultExt) + " " + str(eachSubSes) + ".results/pb01." + str(eachSubSes) + ".r01.blip+orig")
-   antsReg(eachSubSes=eachSubSes, corrMethod="ae")
 
 
 
@@ -267,7 +271,6 @@ def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeE
 
    # send original T1, original rs-EPI, and fixed rs-EPI to registration step
    os.system ("3dTcat -prefix epiFixed-" + eachSubSes + defaultExt + " epiFixed-" + finalUnwarpDir + "_" + eachSubSes + defaultExt)
-   antsReg(eachSubSes=eachSubSes, corrMethod="ab")
 
 
 
@@ -306,7 +309,6 @@ def fslBlipUpDown (eachSubSes="", epiBlipForOrig="", epiBlipRevOrig=""):
    # send original T1, original rs-EPI, and fixed rs-EPI to registration step
    if ( defaultExt == ".nii" ):
       os.system("gzip -d epiFixed-" + eachSubSes + ".nii.gz")
-   antsReg(eachSubSes=eachSubSes, corrMethod="fe")
 
 
 
@@ -349,7 +351,8 @@ def fslB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeEc
    if ( defaultExt == ".nii" ):
       os.system("gzip -d epiFixed-*.nii.gz")
    os.system ("3dTcat -prefix epiFixed-" + eachSubSes + defaultExt + " epiFixed-" + finalUnwarpDir + "_" + eachSubSes + defaultExt)
-   antsReg(eachSubSes=eachSubSes, corrMethod="fb")
+
+
 
 
 
@@ -361,7 +364,7 @@ def noCorr (eachSubSes=""):
 
    os.system ("3dTcat -prefix epiFixed-" + eachSubSes + defaultExt + " epiRest-" + eachSubSes + defaultExt)
 
-   antsReg(eachSubSes=eachSubSes, corrMethod="nc")
+
 
 
 
@@ -479,6 +482,8 @@ def antsReg(eachSubSes="", corrMethod=""):
 
 
 
+
+
 ###### AFNI VOLREG ######
 ###### BASELINE: AFNI STANDARD DISTORTION CORRECTION PROCEDURE ######
 
@@ -505,7 +510,7 @@ def afniStandard (eachSubSes=""):
 
    os.system("3dTcat -prefix fixedReg2T1_" + str(eachSubSes) + str(defaultExt) + " epiRest-" + str(eachSubSes) + "_al+orig")
 
-   antsReg(eachSubSes=eachSubSes, corrMethod="as")
+
 
 
 
@@ -531,7 +536,7 @@ def fslStandard (eachSubSes=""):
 
    os.system("gzip -d fixedReg2T1_*.nii.gz")
 
-   antsReg(eachSubSes=eachSubSes, corrMethod="fs")
+
 
 
 
@@ -555,10 +560,15 @@ def maskB0 (eachSubSes="", magOrig=""):
                    "magUF-" + eachSubSes + defaultExt])
 
 
+
+
+
 def executeAndWait(commandArray):
 
    thisPopen = Popen(commandArray, stdout=PIPE, stderr=PIPE)
    thisPopen.wait()
+
+
 
 
 
@@ -643,6 +653,9 @@ def main():
             print "Starting distortion correction using FSL's FUGUE (-" + str(corrMethod) + ")"
 
    getScans (options.dataDir, bidsDict, corrMethod, options.esp, options.fov)
+
+
+
 
    
 if __name__ == '__main__':
