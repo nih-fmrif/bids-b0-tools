@@ -67,10 +67,11 @@ foreach corr ( $argv[2-] )
    echo "module load afni/current-openmp" >>! sbatch_$corr.csh
 
    echo "source /data/PdnData/distortionCorrectionStudy/venvWithPyFS/bin/activate.csh" >>! sbatch_$corr.csh
-   echo "sbatch --time=10-00:00:00 \" >>! sbatch_$corr.csh
-   echo "       --mem=32g \" >>! sbatch_$corr.csh
+   # echo "sbatch --time=10-00:00:00 \" >>! sbatch_$corr.csh
+   echo "sbatch --time=36:00:00 \" >>! sbatch_$corr.csh
+   echo "       --mem=8g \" >>! sbatch_$corr.csh
    echo "       --partition nimh,norm \" >>! sbatch_$corr.csh
-   echo "       --cpus-per-task=8 \" >>! sbatch_$corr.csh
+   echo "       --cpus-per-task=16 \" >>! sbatch_$corr.csh
    echo "       $dfpy -d $datadir -$corr" >>! sbatch_$corr.csh
 
    # begin correction by executing the batch tcsh script
