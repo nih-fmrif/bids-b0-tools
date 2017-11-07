@@ -58,9 +58,9 @@ fslUnwarpDict = dict(zip(unwarpKeys, fslUnwarpVals))
 #                   "AP_-1.0", "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0",
 #                   "RL_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
 #                   "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0", "RL_1.0"]
-afniUnwarpVals = ["AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
-                  "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
-                  "AP_-1.0"]
+afniUnwarpVals = ["AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0",
+                  "AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0",
+                  "AP_1.0"]
 afniUnwarpDict = dict(zip(unwarpKeys, afniUnwarpVals))
 
 
