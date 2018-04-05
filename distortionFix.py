@@ -411,20 +411,19 @@ def antsReg(eachSubSes="", corrMethod=""):
          subjDirID = str(eachSubSes)
 
       if corrMethod in ('ae', 'ab', 'fe', 'fb', 'nc'):
+
+         # metric4Registration = "--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
+         metric4Registration = "--metric CC'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,3]' "
+         basicRegistration   = ("antsRegistration   -d 3   --float   --transform Rigid'[0.1]' "  +  metric4Registration  +
+                                "--convergence '[1000x500x250x100]'  --shrink-factors 8x4x2x1   --smoothing-sigmas 1.5x1.5x1.5x0vox   ")
+
          if eachSubSes in dataNeedingGiantMove:
             print "Adding histogram matching and initial moving transform for " + str(subjDirID)
             # antsRegistration adapted from https://github.com/stnava/ANTs/wiki/Anatomy-of-an-antsRegistration-call
-            antsReg1 = ("antsRegistration "
-                        "-d 3 "
-                        "--float "
-                        "--output '[fixedReg2T1_" + subjDirID + "_,fixedReg2T1_" + subjDirID + ".nii]' "
-                        "--use-histogram-matching 0 "
-                        "--initial-moving-transform '[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,0]' "
-                        "--transform Rigid'[0.1]' "
-                        "--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
-                        "--convergence '[1000x500x250x100]' "
-                        "--shrink-factors 8x4x2x1 "
-                        "--smoothing-sigmas 1.5x1.5x1.5x0vox")
+            antsReg1 = (basicRegistration +
+                        "--output '[fixedReg2T1_" + subjDirID + "_,fixedReg2T1_" + subjDirID + ".nii]'   "
+                        "--use-histogram-matching 0   "
+                        "--initial-moving-transform '[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,0]' ")
 
             # Write ANTs commands to shell script and execute
             with open("antsReg_1_" + str(eachSubSes) + ".csh", "a") as antsRegFile1:
@@ -433,22 +432,14 @@ def antsReg(eachSubSes="", corrMethod=""):
 
          else:
             print "No histogram matching and initial moving transform needed for " + str(subjDirID)
-            antsReg1 = ("antsRegistration "
-                        "-d 3 "
-                        "--float "
-                        "--output '[fixedReg2T1_" + subjDirID + "_]' "
-                        "--transform Rigid'[0.1]' "
-                        "--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
-                        "--convergence '[1000x500x250x100]' "
-                        "--shrink-factors 8x4x2x1 "
-                        "--smoothing-sigmas 1.5x1.5x1.5x0vox")
+            antsReg1 = basicRegistration + "--output '[fixedReg2T1_" + subjDirID + "_]' "
 
-            antsReg2 = ("antsApplyTransforms "
-                        "-d 3 "
-                        "-e 3 "
-                        "-i epiFixed-" + subjDirID + ".nii "
-                        "-r anat-" + eachSubSes + ".nii "
-                        "-o fixedReg2T1_" + subjDirID + defaultExt + " "
+            antsReg2 = ("antsApplyTransforms   "
+                        "-d 3   "
+                        "-e 3   "
+                        "-i epiFixed-" + subjDirID + ".nii   "
+                        "-r anat-" + eachSubSes + ".nii   "
+                        "-o fixedReg2T1_" + subjDirID + defaultExt + "   "
                         "-t '[fixedReg2T1_" + subjDirID + "_0GenericAffine.mat,0]'")
 
             # Write ANTs commands to shell script and execute
@@ -463,10 +454,12 @@ def antsReg(eachSubSes="", corrMethod=""):
       # generate mean time series image of corrected+registered EPI
       os.system("antsMotionCorr -d 3 -a fixedReg2T1_" + subjDirID + ".nii -o meanTS_fixedReg2T1_" + subjDirID + defaultExt)
 
-      # begin calculating MI
+      # begin calculating alignment metric, initially MI (mutual information), then Pearson Correlation
+      # metric4Matching = "Mattes"
+      metric4Matching = "PearsonCorrelation"
       print "Gathering and documenting MI for " + str(eachSubSes)
       antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
-                             "Mattes", "anat-" + eachSubSes + ".nii", "meanTS_fixedReg2T1_" + subjDirID + ".nii"], 
+                             metric4Matching, "anat-" + eachSubSes + ".nii", "meanTS_fixedReg2T1_" + subjDirID + ".nii"], 
                              stdout=PIPE)
       antsRegOut = antsRegMetric.communicate()[0]
       if (antsRegOut == ""):
