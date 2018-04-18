@@ -1,7 +1,9 @@
 #!/bin/tcsh
 
+set    projectTop = "/data/$USER"
+
 setenv PATH /usr/local/slurm/bin:{$PATH}
-setenv PYTHONPATH /data/PdnData/distortionCorrectionStudy/BIDS-tools
+setenv PYTHONPATH $projectTop/BIDS-tools
 
 if( $#argv < 2 ) then
   echo " "
@@ -35,17 +37,18 @@ endif
 
 # set BIDS-tools and bidsFormatData directory locations
 
-set dfpy    = "../../BIDS-tools/distortionFix.py"
+set dfpy          = "$projectTop/BIDS-tools/distortionFix.py"
 # for testing with a smaller number of subjects
-set datadir = "../../exampleSubjects/"
-# set datadir = "../../bidsFormatData/"
+set datadir       = "$projectTop/exampleSubjects/"
+# full data set
+# set datadir       = "$projectTop/bidsFormatData/"
 
 # create working directory using 'suffix' from command line
 
 set worksdir = distFix_$argv[1]
 
 if ( -e $worksdir ) then
-   echo "*** Directory $worksDir already exists..."
+   echo "*** Directory $worksdir already exists..."
    echo "*** try something different for 'suffix'."
 else
    mkdir $worksdir
@@ -62,11 +65,13 @@ foreach corr ( $argv[2-] )
 
    # create a batch tcsh script for each correction
 
-   echo "module load ANTs" >! sbatch_$corr.csh
-   echo "module load fsl" >>! sbatch_$corr.csh
+   echo "module load python/2.7.9"         >! sbatch_$corr.csh
+   echo "module load virtualenv"          >>! sbatch_$corr.csh
+   echo "module load ANTs"                >>! sbatch_$corr.csh
+   echo "module load fsl"                 >>! sbatch_$corr.csh
    echo "module load afni/current-openmp" >>! sbatch_$corr.csh
 
-   echo "source /data/PdnData/distortionCorrectionStudy/venvWithPyFS/bin/activate.csh" >>! sbatch_$corr.csh
+   echo "source $projectTop/venvWithPyFS/bin/activate.csh" >>! sbatch_$corr.csh
    # echo "sbatch --time=10-00:00:00 \" >>! sbatch_$corr.csh
    echo "sbatch --time=36:00:00 \" >>! sbatch_$corr.csh
    echo "       --mem=8g \" >>! sbatch_$corr.csh
@@ -81,5 +86,4 @@ foreach corr ( $argv[2-] )
    cd ../
 
 end
-
 
