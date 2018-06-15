@@ -39,9 +39,9 @@ endif
 
 set dfpy          = "$projectTop/BIDS-tools/distortionFix.py"
 # for testing with a smaller number of subjects
-set datadir       = "$projectTop/exampleSubjects/"
+# set datadir       = "$projectTop/exampleSubjects/"
 # full data set
-# set datadir       = "$projectTop/bidsFormatData/"
+set datadir       = "$projectTop/bidsFormatData/"
 
 # create working directory using 'suffix' from command line
 

@@ -23,7 +23,7 @@ for sub in allSub:
 
 # List of subjects with poor initial alignment of epi and anat
 dataNeedingGiantMove = ["sub-09_ses-03", "sub-12_ses-02", "sub-14_ses-02", "sub-18_ses-04", "sub-25_ses-01",
-                        "sub-28_ses-01", "sub-28_ses-02", "sub-32_ses-02", "sub-36_ses-01", "sub-37_ses-02"]
+                        "sub-31_ses-01", "sub-32_ses-02", "sub-36_ses-01", "sub-37_ses-02"]
 
 forwardReverseBlipsInDifferentPositions = ["sub-09_ses-03", "sub-14_ses-02", "sub-22_ses-01", "sub-34_ses-01",
                                            "sub-37_ses-02"]
@@ -107,7 +107,7 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
                if t1wRunKey in runLoc:
                   anatOrig = runLoc
                if epiRestRunKey in runLoc:
-                  epiRestOrig = runLoc + '[0..24]'
+                  epiRestOrig = runLoc + '[0..14]'
                if epiBlipForRunKey in runLoc:
                   # epiBlipForOrig = runLoc + '[0..14]'
                   epiBlipForOrig = runLoc + '[0]' # For data with low contrast in time series
@@ -262,7 +262,6 @@ def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeE
                    "-prefix", "fmapInHz-smoothed-" + eachSubSes + defaultExt,
                    "fmapInHz-" + eachSubSes + defaultExt])
 
-   # Self warp field map to match epi distortions
    distDirections = ["RL", "AP"]
    distDirectionsSigns = [-1.0, 1.0]
 
@@ -270,6 +269,7 @@ def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeE
       for dirSign in distDirectionsSigns:
          if (checkAllUnwarpDirs or (str(distDir + "_" + str(dirSign)) == afniUnwarpDict[eachSubSes])):
             print "Starting afni 3dNwarpApply in " + str(distDir) + "_" + str(dirSign) + " direction for " + str(eachSubSes)
+            # Self warp field map to match epi distortions
             executeAndWait(["3dNwarpApply", "-warp", distDir + ":" + str(dirSign * 1.0) + ":fmapInHz-smoothed-" + eachSubSes + defaultExt,
                             "-prefix", "fmapInHz-smoothed-warped2epi_" + distDir + "_" + str(dirSign * -1.0) + "_" + eachSubSes + defaultExt,
                             "-source", "fmapInHz-smoothed-" + eachSubSes + defaultExt])
@@ -412,6 +412,18 @@ def antsReg(eachSubSes="", corrMethod=""):
 
       if corrMethod in ('ae', 'ab', 'fe', 'fb', 'nc'):
 
+         # Instead of volume registering and interpolating, just interpolate EPI data set to anatomical data set grid.
+         regriddedData = "epiFixed-Interpolated-" + subjDirID + ".nii"
+         antsReg0 = ("antsApplyTransforms   "
+                     "-d 3   "
+                     "-r anat-" + eachSubSes + ".nii   "
+                     "-i epiFixed-" + subjDirID + ".nii   "
+                     "-o " + regriddedData)
+
+         with open("antsReg_0_" + subjDirID + ".csh", "a") as antsRegFile0:
+            antsRegFile0.write(antsReg0)
+         os.system(antsReg0)
+
          # metric4Registration = "--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
          metric4Registration = "--metric CC'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,3]' "
          basicRegistration   = ("antsRegistration   -d 3   --float   --transform Rigid'[0.1]' "  +  metric4Registration  +
@@ -420,8 +432,9 @@ def antsReg(eachSubSes="", corrMethod=""):
          if eachSubSes in dataNeedingGiantMove:
             print "Adding histogram matching and initial moving transform for " + str(subjDirID)
             # antsRegistration adapted from https://github.com/stnava/ANTs/wiki/Anatomy-of-an-antsRegistration-call
+            regOutput = "fixedReg2T1_" + subjDirID
             antsReg1 = (basicRegistration +
-                        "--output '[fixedReg2T1_" + subjDirID + "_,fixedReg2T1_" + subjDirID + ".nii]'   "
+                        "--output '[" + regOutput + "_," + regOutput + ".nii]'   "
                         "--use-histogram-matching 0   "
                         "--initial-moving-transform '[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,0]' ")
 
@@ -430,7 +443,11 @@ def antsReg(eachSubSes="", corrMethod=""):
                antsRegFile1.write(antsReg1)
             os.system(antsReg1)
 
+            dataSetToMatchAgainst = regOutput + ".nii"
+
          else:
+            dataSetToMatchAgainst = regriddedData
+
             print "No histogram matching and initial moving transform needed for " + str(subjDirID)
             # antsReg1 = basicRegistration + "--output '[fixedReg2T1_" + subjDirID + "_]' "
 
@@ -447,27 +464,16 @@ def antsReg(eachSubSes="", corrMethod=""):
                # antsRegFile1.write(antsReg1)
             ### 2018.04.18 - Try to distortion correct and check quality without registration ### os.system(antsReg1)
 
-            # Instead of volume registering and interpolating, just interpolate EPI to anat.
-            antsReg2 = ("antsApplyTransforms   "
-                        "-d 3   "
-                        "-r anat-" + eachSubSes + ".nii   "
-                        "-i epiFixed-" + subjDirID + ".nii   "
-                        "-o epiFixed-Interpolated-" + subjDirID + ".nii")
-
-            with open("antsReg_2_" + subjDirID + ".csh", "a") as antsRegFile2:
-               antsRegFile2.write(antsReg2)
-            os.system(antsReg2)
-
       # generate mean time series image of corrected+registered EPI
       ### 2018.04.18 - Try to distortion correct and check quality without registration ### os.system("antsMotionCorr -d 3 -a fixedReg2T1_" + subjDirID + ".nii -o meanTS_fixedReg2T1_" + subjDirID + defaultExt)
 
       # begin calculating alignment metric, initially MI (mutual information), then Pearson Correlation
       # metric4Matching = "Mattes"
       metric4Matching = "PearsonCorrelation"
-      print "Gathering and documenting MI for " + str(eachSubSes)
+      print "Gathering and documenting matching statistics, here: " + metric4Matching + ", for " + str(eachSubSes)
       antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
                              ### Try to distortion correct and check quality without registration.18 - Is registration necessary ### metric4Matching, "anat-" + eachSubSes + ".nii", "meanTS_fixedReg2T1_" + subjDirID + ".nii"], 
-                             metric4Matching, "anat-" + eachSubSes + ".nii", "epiFixed-Interpolated-" + subjDirID + ".nii"], 
+                             metric4Matching, "anat-" + eachSubSes + ".nii", dataSetToMatchAgainst], 
                              stdout=PIPE)
       antsRegOut = antsRegMetric.communicate()[0]
       if (antsRegOut == ""):
