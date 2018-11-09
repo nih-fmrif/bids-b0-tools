@@ -414,15 +414,15 @@ def antsReg(eachSubSes="", corrMethod=""):
 
          # Instead of volume registering and interpolating, just interpolate EPI data set to anatomical data set grid.
          regriddedData = "epiFixed-Interpolated-" + subjDirID + ".nii"
-         antsReg0 = ("antsApplyTransforms   "
-                     "-d 3   "
-                     "-r anat-" + eachSubSes + ".nii   "
-                     "-i epiFixed-" + subjDirID + ".nii   "
-                     "-o " + regriddedData)
 
-         with open("antsReg_0_" + subjDirID + ".csh", "a") as antsRegFile0:
-            antsRegFile0.write(antsReg0)
-         os.system(antsReg0)
+         resampleEPI2Anat = ("3dresample -rmode Cu   "
+                             " -master anat-" + eachSubSes + ".nii   "
+                             " -input epiFixed-" + subjDirID + ".nii   "
+                             " -prefix " + regriddedData)
+
+         with open("epiResample_" + subjDirID + ".csh", "a") as epiResampleFile:
+            epiResampleFile.write(resampleEPI2Anat)
+         os.system(resampleEPI2Anat)
 
          # metric4Registration = "--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
          metric4Registration = "--metric CC'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,3]' "
@@ -449,30 +449,12 @@ def antsReg(eachSubSes="", corrMethod=""):
             dataSetToMatchAgainst = regriddedData
 
             print "No histogram matching and initial moving transform needed for " + str(subjDirID)
-            # antsReg1 = basicRegistration + "--output '[fixedReg2T1_" + subjDirID + "_]' "
-
-            # antsReg2 = ("antsApplyTransforms   "
-                        # "-d 3   "
-                        # "-e 3   "
-                        # "-i epiFixed-" + subjDirID + ".nii   "
-                        # "-r anat-" + eachSubSes + ".nii   "
-                        # "-o fixedReg2T1_" + subjDirID + ".nii   "
-                        # "-t '[fixedReg2T1_" + subjDirID + "_0GenericAffine.mat,0]'")
-
-            # # Write ANTs commands to shell script and execute
-            # with open("antsReg_1_" + subjDirID + ".csh", "a") as antsRegFile1:
-               # antsRegFile1.write(antsReg1)
-            ### 2018.04.18 - Try to distortion correct and check quality without registration ### os.system(antsReg1)
-
-      # generate mean time series image of corrected+registered EPI
-      ### 2018.04.18 - Try to distortion correct and check quality without registration ### os.system("antsMotionCorr -d 3 -a fixedReg2T1_" + subjDirID + ".nii -o meanTS_fixedReg2T1_" + subjDirID + defaultExt)
 
       # begin calculating alignment metric, initially MI (mutual information), then Pearson Correlation
       # metric4Matching = "Mattes"
       metric4Matching = "PearsonCorrelation"
       print "Gathering and documenting matching statistics, here: " + metric4Matching + ", for " + str(eachSubSes)
       antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
-                             ### Try to distortion correct and check quality without registration.18 - Is registration necessary ### metric4Matching, "anat-" + eachSubSes + ".nii", "meanTS_fixedReg2T1_" + subjDirID + ".nii"], 
                              metric4Matching, "anat-" + eachSubSes + ".nii", dataSetToMatchAgainst], 
                              stdout=PIPE)
       antsRegOut = antsRegMetric.communicate()[0]
