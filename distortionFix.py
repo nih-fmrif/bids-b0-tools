@@ -33,35 +33,31 @@ forwardReverseBlipsInDifferentPositions = ["sub-09_ses-03", "sub-14_ses-02", "su
 checkAllUnwarpDirs = False
 
 # Complete list of subjects with all scans for B0 corrections
-# unwarpKeys = ["sub-02_ses-01", "sub-07_ses-04", "sub-08_ses-02", "sub-09_ses-03", "sub-15_ses-02",
-#               "sub-11_ses-02", "sub-14_ses-02", "sub-12_ses-02", "sub-13_ses-03", "sub-18_ses-04",
-#               "sub-22_ses-03", "sub-22_ses-02", "sub-24_ses-01", "sub-25_ses-01", "sub-26_ses-01",
-#               "sub-27_ses-01", "sub-28_ses-02", "sub-28_ses-01", "sub-32_ses-01", "sub-32_ses-02",
-#               "sub-33_ses-01", "sub-34_ses-01", "sub-37_ses-02", "sub-39_ses-02", "sub-41_ses-01"]
 unwarpKeys = ["sub-07_ses-04", "sub-14_ses-02", "sub-22_ses-02", "sub-22_ses-03", "sub-24_ses-01",
               "sub-26_ses-01", "sub-27_ses-01", "sub-32_ses-01", "sub-33_ses-01", "sub-34_ses-01",
               "sub-39_ses-02"]
 # Input unwarp directions based on best fixed epi by visual inspection
 # after fslB0 corrections using all 4 directions
-# fslUnwarpVals = ["x-", "y-", "y-", "y-", "x",
-#                  "x",  "y-", "x-", "x",  "y-",
-#                  "y-", "y-", "y-", "x-", "y-",
-#                  "y-", "x-", "x",  "y-", "x-",
-#                  "y-", "y-", "y-", "y-", "x-"]
 fslUnwarpVals = ["y-", "y-", "y-", "y-", "y-",
                  "y-", "y-", "y-", "y-", "y-",
                  "y-"]
 fslUnwarpDict = dict(zip(unwarpKeys, fslUnwarpVals))
 
-# afniUnwarpVals = ["AP_-1.0", "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0",
-#                   "AP_-1.0", "RL_1.0",  "AP_-1.0", "AP_-1.0", "RL_-1.0",
-#                   "AP_-1.0", "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0",
-#                   "RL_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0", "AP_-1.0",
-#                   "AP_-1.0", "AP_-1.0", "RL_-1.0", "AP_-1.0", "RL_1.0"]
 afniUnwarpVals = ["AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0",
                   "AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0", "AP_1.0",
                   "AP_1.0"]
 afniUnwarpDict = dict(zip(unwarpKeys, afniUnwarpVals))
+
+# Dict of subjects acquired in de-cub position, to specify to topup to get phase encode axis right
+acqParams        = "acqParams.txt" # name of the text file with data used by topup for blip up/down corrections
+subjectsDecubbed = {"sub-02_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
+                    # "sub-11_ses-02" : "0 -1 0 0.02976\n0 1 0 0.02976",
+                    # "sub-29_ses-01", # problem here is not phase encode, but seems to be intensity / hot spot
+                    # "sub-32_ses-02" : "0 -1 0 0.02976\n0 1 0 0.02976",
+                    "sub-38_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
+                    "default"       : "0 -1 0 0.02976\n0 1 0 0.02976"
+                   }
+
 
 
 
@@ -169,6 +165,8 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
                if not os.path.exists(eachSubSes + ".results/"):
                   os.system ("mkdir " + eachSubSes + ".results/")
                os.system ("mv --no-clobber *" + eachSubSes + "* " + eachSubSes + ".results/")
+               if (corrMethod in ('fe')):
+                  os.system ("mv --no-clobber " + acqParams + "  " + eachSubSes + ".results/")
 
          else: # corrMethod not in ('ae', 'fe', 'ab', 'fb', 'as', 'fs', 'nc'), i.e. (corrMethod == "m") - masking routine
             if not ( (runLoc == "") or (magOrig == "") ):
@@ -295,13 +293,17 @@ def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeE
 def fslBlipUpDown (eachSubSes="", epiBlipForOrig="", epiBlipRevOrig=""):
    print "Starting fslBlipUpDown for " + str(eachSubSes)
 
-   acqParams = "acqParams.txt" # name of the text file with four columns
    if not os.path.isfile(acqParams):
       print "*** distortionFix.py could not locate the acquisition parameters text file, which"
       print "*** is currently defined as: " + str(acqParams) + " in the fslBlipUpDown function."
       print "*** Generating a sample text file based on the PDN data to continue..."
       with open("acqParams.txt", "a") as paramFile:
-         paramFile.write("-1 0 0 0.02976\n1 0 0 0.02976")
+         if (eachSubSes in subjectsDecubbed.keys()):
+            print ("Using ***SPECIAL*** phase encoding direction set " + subjectsDecubbed[eachSubSes] + " for subject " + eachSubSes)
+            paramFile.write(subjectsDecubbed[eachSubSes])
+         else:
+            print ("Using ** default ** phase encoding direction parameters for subject " + eachSubSes)
+            paramFile.write(subjectsDecubbed["default"])
       print "*** Please refer to topup documentation to set the proper parameters for your data."
 
    os.system ("3dTcat -prefix bothBlips-" + str(eachSubSes) + str(defaultExt) + " " + str(epiBlipRevOrig) + " " + str(epiBlipForOrig))
