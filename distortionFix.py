@@ -51,9 +51,12 @@ afniUnwarpDict = dict(zip(unwarpKeys, afniUnwarpVals))
 # Dict of subjects acquired in de-cub position, to specify to topup to get phase encode axis right
 acqParams        = "acqParams.txt" # name of the text file with data used by topup for blip up/down corrections
 subjectsDecubbed = {"sub-02_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
-                    # "sub-11_ses-02" : "0 -1 0 0.02976\n0 1 0 0.02976",
-                    # "sub-29_ses-01", # problem here is not phase encode, but seems to be intensity / hot spot
-                    # "sub-32_ses-02" : "0 -1 0 0.02976\n0 1 0 0.02976",
+                    "sub-11_ses-02" : "-1 0 0 0.02976\n1 0 0 0.02976",
+                    "sub-13_ses-03" : "-1 0 0 0.02976\n1 0 0 0.02976",
+                    "sub-15_ses-02" : "-1 0 0 0.02976\n1 0 0 0.02976",
+                    "sub-28_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
+                    "sub-28_ses-02" : "-1 0 0 0.02976\n1 0 0 0.02976",
+                    "sub-29_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
                     "sub-38_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
                     "default"       : "0 -1 0 0.02976\n0 1 0 0.02976"
                    }
