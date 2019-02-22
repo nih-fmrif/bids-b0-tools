@@ -69,13 +69,13 @@ subjectsDecubbed = {"sub-02_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
 def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0):
 
    t1wRunKey         = "T1w."
+   t1wSSRunKey       = "T1w_skull_stripped"
    epiRestRunKey     = "dir-y_run"
    epiBlipForRunKey  = "dir-y_run"
    epiBlipRevRunKey  = "dir-y-_run"
    magRunKey         = "magnitude"
    freqRunKey        = "frequency"
    maskRunKey        = "magUFMask"
-   t1wSSRunKey       = "T1w_skull_stripped"
 
    for eachSubject in bidsSubjectDict.keys():
       subjLoc = bidsTopLevelDir + eachSubject + "/"
@@ -89,13 +89,13 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
 
          runLoc          = ""
          anatOrig        = ""
+         anatSSOrig      = ""
          epiRestOrig     = ""
          epiBlipForOrig  = ""
          epiBlipRevOrig  = ""
          magOrig         = ""
          freqOrig        = ""
          maskOrig        = ""
-         anatSS          = ""
          logNum          = False
 
          for eachScanType in bidsSubjectDict[eachSubject][eachSession].keys():
@@ -105,6 +105,8 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
 
                if t1wRunKey in runLoc:
                   anatOrig = runLoc
+               if t1wSSRunKey in runLoc:
+                  anatSSOrig = runLoc
                if epiRestRunKey in runLoc:
                   epiRestOrig = runLoc + '[0..14]'
                if epiBlipForRunKey in runLoc:
@@ -119,15 +121,13 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
                   freqOrig = runLoc
                if maskRunKey in runLoc:
                   maskOrig = runLoc
-               if t1wSSRunKey in runLoc:
-                  anatSS = runLoc
 
          # Perform distortion correction method 'corrMethod' if session contains the necessary files
 
          if (corrMethod in ('ae', 'fe', 'ab', 'fb', 'as', 'fs', 'nc')):
             if ((corrMethod in ('ae', 'fe')) and (eachSubSes not in forwardReverseBlipsInDifferentPositions)):
-               if not ((runLoc == "") or (anatOrig == "") or (epiRestOrig == "") or (epiBlipForOrig == "") or (epiBlipRevOrig == "")):
-                  copyOrigs (eachSubSes=eachSubSes, anatOrig=anatOrig, epiRestOrig=epiRestOrig)
+               if not ((runLoc == "") or (anatOrig == "") or (anatSSOrig == "") or (epiRestOrig == "") or (epiBlipForOrig == "") or (epiBlipRevOrig == "")):
+                  copyOrigs (eachSubSes=eachSubSes, anatOrig=anatOrig, anatSSOrig=anatSSOrig, epiRestOrig=epiRestOrig)
                   if (corrMethod == "ae"):
                      afniBlipUpDown(eachSubSes=eachSubSes, epiBlipForOrig=epiBlipForOrig, epiBlipRevOrig=epiBlipRevOrig)
                   else:
@@ -139,8 +139,8 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
             if ((corrMethod in ('ab', 'fb')) and (eachSubSes in unwarpKeys)):
                if (maskOrig == ""):
                   print str(eachSubSes) + " requires a mask!"
-               if not ( (runLoc == "") or (anatOrig == "") or (epiRestOrig == "") or (magOrig == "") or (freqOrig == "") or (maskOrig == "") ):
-                  copyOrigs (eachSubSes=eachSubSes, anatOrig=anatOrig, epiRestOrig=epiRestOrig)
+               if not ( (runLoc == "") or (anatOrig == "") or (anatSSOrig == "") or (epiRestOrig == "") or (magOrig == "") or (freqOrig == "") or (maskOrig == "") ):
+                  copyOrigs (eachSubSes=eachSubSes, anatOrig=anatOrig, anatSSOrig=anatSSOrig, epiRestOrig=epiRestOrig)
                   if (corrMethod == "ab"):
                      afniB0(eachSubSes=eachSubSes, magOrig=magOrig, freqOrig=freqOrig, maskOrig=maskOrig, epiPhaseEncodeEchoSpacing=epiPhaseEncodeEchoSpacing, epiPhaseFOV=epiPhaseFOV)
                   else:
@@ -150,8 +150,8 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
                   logNum = False
 
             if (corrMethod in ('as', 'fs', 'nc')):
-               if not ((runLoc == "") or (anatOrig == "") or (epiRestOrig == "")):
-                  copyOrigs (eachSubSes=eachSubSes, anatOrig=anatOrig, epiRestOrig=epiRestOrig)
+               if not ((runLoc == "") or (anatOrig == "") or (anatSSOrig == "") or (epiRestOrig == "")):
+                  copyOrigs (eachSubSes=eachSubSes, anatOrig=anatOrig, anatSSOrig=anatSSOrig, epiRestOrig=epiRestOrig)
                   if (corrMethod == "as"):
                      afniStandard(eachSubSes=eachSubSes)
                   elif (corrMethod == "fs"):
@@ -197,10 +197,15 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
 
 
 
-def copyOrigs (eachSubSes="", anatOrig="", epiRestOrig=""):
+def copyOrigs (eachSubSes="", anatOrig="", anatSSOrig="", epiRestOrig=""):
 
-   os.system ("3dTcat -prefix anat-" + str(eachSubSes) + str(defaultExt) + " " + str(anatOrig))
-   os.system ("3dTcat -prefix epiRest-" + str(eachSubSes) + str(defaultExt) + " " + str(epiRestOrig))
+   os.system ("3dTcat      -prefix anat-"      + str(eachSubSes) + str(defaultExt) + " " + str(anatOrig))
+   os.system ("3dTcat      -prefix epiRest-"   + str(eachSubSes) + str(defaultExt) + " " + str(epiRestOrig))
+   # Also include mask generation from skull-stripped version of anatomical data set.
+   os.system ("3dAutomask  -prefix brain-mask"                   + str(defaultExt) + " " + str(anatSSOrig))
+   os.system ("3dresample  -prefix anat-mask-" + str(eachSubSes) + str(defaultExt) + " " + 
+                          "-master " + "anat-" + str(eachSubSes) + str(defaultExt) + " " + " -input brain-mask.nii")
+   os.system ("rm          -f      brain-mask"                   + str(defaultExt))
 
 
 
@@ -415,13 +420,16 @@ def antsReg(eachSubSes="", corrMethod=""):
       else:
          subjDirID = str(eachSubSes)
 
+      anatDset = "anat-" +      str(eachSubSes) + str(defaultExt)
+      anatMask = "anat-mask-" + str(eachSubSes) + str(defaultExt)
+
       if corrMethod in ('ae', 'ab', 'fe', 'fb', 'nc'):
 
          # Instead of volume registering and interpolating, just interpolate EPI data set to anatomical data set grid.
          regriddedData = "epiFixed-Interpolated-" + subjDirID + ".nii"
 
          resampleEPI2Anat = ("3dresample -rmode Cu   "
-                             " -master anat-" + eachSubSes + ".nii   "
+                             " -master " + anatDset +
                              " -input epiFixed-" + subjDirID + ".nii   "
                              " -prefix " + regriddedData)
 
@@ -430,7 +438,7 @@ def antsReg(eachSubSes="", corrMethod=""):
          os.system(resampleEPI2Anat)
 
          # metric4Registration = "--metric MI'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,32,Regular,0.25]' "
-         metric4Registration = "--metric CC'[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,1,3]' "
+         metric4Registration = "--metric CC'[" + anatDset + ",epiFixed-" + subjDirID + ".nii,1,3]' "
          basicRegistration   = ("antsRegistration   -d 3   --float   --transform Rigid'[0.1]' "  +  metric4Registration  +
                                 "--convergence '[1000x500x250x100]'  --shrink-factors 8x4x2x1   --smoothing-sigmas 1.5x1.5x1.5x0vox   ")
 
@@ -441,7 +449,7 @@ def antsReg(eachSubSes="", corrMethod=""):
             antsReg1 = (basicRegistration +
                         "--output '[" + regOutput + "_," + regOutput + ".nii]'   "
                         "--use-histogram-matching 0   "
-                        "--initial-moving-transform '[anat-" + eachSubSes + ".nii,epiFixed-" + subjDirID + ".nii,0]' ")
+                        "--initial-moving-transform '[" + anatDset + ",epiFixed-" + subjDirID + ".nii,0]' ")
 
             # Write ANTs commands to shell script and execute
             with open("antsReg_1_" + str(eachSubSes) + ".csh", "a") as antsRegFile1:
@@ -460,7 +468,7 @@ def antsReg(eachSubSes="", corrMethod=""):
       metric4Matching = "PearsonCorrelation"
       print "Gathering and documenting matching statistics, here: " + metric4Matching + ", for " + str(eachSubSes)
       antsRegMetric = Popen(["ImageMath", "3", "out.nii.gz",
-                             metric4Matching, "anat-" + eachSubSes + ".nii", dataSetToMatchAgainst], 
+                             metric4Matching, anatDset, dataSetToMatchAgainst, anatMask], 
                              stdout=PIPE)
       antsRegOut = antsRegMetric.communicate()[0]
       if (antsRegOut == ""):

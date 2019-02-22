@@ -35,6 +35,16 @@ class bidsToolsFS:
       # Store all unique dataset names
       runsList = []
 
+      # Alternative to using the 'fs' module.  Needs to be tested and validated!
+      #
+      # allRuns = []
+      #
+      # for dirName, subdirList, fileList in os.walk(bidsDir, topdown=False):
+      #    for fname in fileList:
+      #       if ('sub' in fname):
+      #          allRuns.append (unicode(os.path.join (dirName, fname), 'utf-8'))
+
+
       for eachRun in allRuns:
          if defaultDelimiter == "+": # AFNI data set
             runRootName = eachRun.split(defaultDelimiter)[0]
