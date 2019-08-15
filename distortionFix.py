@@ -249,17 +249,23 @@ def afniBlipUpDown (eachSubSes="", epiBlipForOrig="", epiBlipRevOrig=""):
 ###### AFNI B0 OPTION ######
 ###### EXPERIMENTAL: AFNI B0 FIELD MAP CORRECTION ######
 
-def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0):
+def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0,
+            bandwidthHzAcquistionReadout=250000.0, bandwidthHzPerPixelReadout=2000.0, nPixelsReadout=96, nPixelsPhase=96):
    # epi phase encode echo spacing unit is in seconds, FOV is in mm
    print "Starting afniB0 for " + str(eachSubSes)
 
    # Find the mode of the frequency distribution in the brain and
-   # subtract this value from the field map. This is from potential vendor
-   # offsets in F0.
+   # subtract this value from the field map. This is from potential
+   # vendor offsets in F0.
    freqMode1 = Popen(["3dROIstats", "-nomeanout", "-quiet", "-mask", maskOrig, "-mode", freqOrig], stdout=PIPE)
    freqOut = freqMode1.communicate()[0]
+
+   sampleTime = 1.0 / bandwidthHzAcquistionReadout # or: 1.0 / (bandwidthHzPerPixelReadout * nPixelsReadout)
+   frequencyShiftScaling = epiPhaseEncodeEchoSpacing / sampleTime
+   perPixelFrequencyShiftPhase = bandwidthHzPerPixelReadout / frequencyShiftScaling # or: bandwidthHzAcquistionReadout / (nPixelsReadout * frequencyShiftScaling)
+
    executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
-                  "-expr", "(a-" + freqOut.strip() + ")*" + str(epiPhaseEncodeEchoSpacing) + "*" + str(epiPhaseFOV) + "*b", # Other analyses may use different scaling.
+                  "-expr", "(a-" + freqOut.strip() + ")/" + str(perPixelFrequencyShiftPhase) + "*" + str(epiPhaseFOV) + "*b/" + str(nPixelsPhase), # Other analyses may use different scaling.
                   "-datum", "float",
                   "-prefix", "fmapInHz-" + eachSubSes + defaultExt])
 
