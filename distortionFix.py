@@ -69,7 +69,7 @@ subjectsDecubbed = {"sub-02_ses-01" : "-1 0 0 0.02976\n1 0 0 0.02976",
 def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0):
 
    t1wRunKey         = "T1w."
-   t1wSSRunKey       = "T1w_skull_stripped"
+   t1wSSRunKey       = "T1w_skull_stripped" # generated via: 3dSkullStrip -use_skull -surface_coil -input $t1wRunKey -prefix $t1wSSRunKey.nii
    epiRestRunKey     = "dir-y_run"
    epiBlipForRunKey  = "dir-y_run"
    epiBlipRevRunKey  = "dir-y-_run"
