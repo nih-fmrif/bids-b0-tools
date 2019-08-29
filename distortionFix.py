@@ -75,7 +75,7 @@ def getScans (bidsTopLevelDir, bidsSubjectDict, corrMethod, epiPhaseEncodeEchoSp
    epiBlipRevRunKey  = "dir-y-_run"
    magRunKey         = "magnitude"
    freqRunKey        = "frequency"
-   maskRunKey        = "magUFMask"
+   maskRunKey        = "magUFMask.nii"
 
    for eachSubject in bidsSubjectDict.keys():
       subjLoc = bidsTopLevelDir + eachSubject + "/"
@@ -580,7 +580,7 @@ def maskB0 (eachSubSes="", magOrig=""):
    print "Starting step 1b (3dAutomask) for " + str(eachSubSes)
    executeAndWait(["3dAutomask", "-prefix",
                    eachSubSes + "_magUFMask" + defaultExt,
-                   "-erode", "3", "-peels", "2",
+                   "-erode", "1", "-peels", "2",
                    "magUF-" + eachSubSes + defaultExt])
 
 
