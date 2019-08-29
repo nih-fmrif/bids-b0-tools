@@ -2,7 +2,6 @@
 
 from   optparse  import  OptionParser
 import time, sys, os
-from   fs.opener import fsopendir, fsopen
 
 
 defaultDelimiter = "."      # Default delimiter for BIDS/nii
@@ -27,22 +26,16 @@ class bidsToolsFS:
 
    def buildBIDSDict(self, bidsDir):
 
-      bidsFS = fsopendir(bidsDir)
-
-      # internalBIDSPath = bidsFS._decode_path(bidsDir)
-
-      allRuns = bidsFS.walkfiles(wildcard="*sub*")
-      # Store all unique dataset names
+      # Store all unique dataset names ...
       runsList = []
 
-      # Alternative to using the 'fs' module.  Needs to be tested and validated!
-      #
-      # allRuns = []
-      #
-      # for dirName, subdirList, fileList in os.walk(bidsDir, topdown=False):
-      #    for fname in fileList:
-      #       if ('sub' in fname):
-      #          allRuns.append (unicode(os.path.join (dirName, fname), 'utf-8'))
+      # ... and all found data sets, initially
+      allRuns = []
+
+      for dirName, subdirList, fileList in os.walk(bidsDir, topdown=False):
+         for fname in fileList:
+            if ('sub' in fname):
+               allRuns.append (unicode(os.path.join (dirName, fname), 'utf-8'))
 
 
       for eachRun in allRuns:
