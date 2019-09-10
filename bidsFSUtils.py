@@ -32,7 +32,7 @@ class bidsToolsFS:
       # ... and all found data sets, initially
       allRuns = []
 
-      for dirName, subdirList, fileList in os.walk(bidsDir, topdown=False):
+      for dirName, subdirList, fileList in os.walk(bidsDir, topdown=False, , followlinks=True):
          for fname in fileList:
             if ('sub' in fname):
                allRuns.append (unicode(os.path.join (dirName, fname), 'utf-8'))

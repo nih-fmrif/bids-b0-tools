@@ -262,6 +262,7 @@ def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeE
 
    sampleTime = 1.0 / bandwidthHzAcquistionReadout # or: 1.0 / (bandwidthHzPerPixelReadout * nPixelsReadout)
    frequencyShiftScaling = epiPhaseEncodeEchoSpacing / sampleTime
+   bandwidthHzPerPixelReadout = bandwidthHzAcquistionReadout / nPixelsReadout
    perPixelFrequencyShiftPhase = bandwidthHzPerPixelReadout / frequencyShiftScaling # or: bandwidthHzAcquistionReadout / (nPixelsReadout * frequencyShiftScaling)
 
    executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
