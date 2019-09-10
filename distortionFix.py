@@ -250,7 +250,7 @@ def afniBlipUpDown (eachSubSes="", epiBlipForOrig="", epiBlipRevOrig=""):
 ###### EXPERIMENTAL: AFNI B0 FIELD MAP CORRECTION ######
 
 def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeEchoSpacing=0.00031, epiPhaseFOV=192.0,
-            bandwidthHzAcquistionReadout=250000.0, bandwidthHzPerPixelReadout=2000.0, nPixelsReadout=96, nPixelsPhase=96):
+            bandwidthHzAcquistionReadout=250000.0, bandwidthHzPerPixelReadout=0.0, nPixelsReadout=96, nPixelsPhase=96):
    # epi phase encode echo spacing unit is in seconds, FOV is in mm
    print "Starting afniB0 for " + str(eachSubSes)
 
@@ -262,7 +262,8 @@ def afniB0 (eachSubSes="", magOrig="", freqOrig="", maskOrig="", epiPhaseEncodeE
 
    sampleTime = 1.0 / bandwidthHzAcquistionReadout # or: 1.0 / (bandwidthHzPerPixelReadout * nPixelsReadout)
    frequencyShiftScaling = epiPhaseEncodeEchoSpacing / sampleTime
-   bandwidthHzPerPixelReadout = bandwidthHzAcquistionReadout / nPixelsReadout
+   if (bandwidthHzPerPixelReadout == 0.0):
+      bandwidthHzPerPixelReadout = bandwidthHzAcquistionReadout / nPixelsReadout
    perPixelFrequencyShiftPhase = bandwidthHzPerPixelReadout / frequencyShiftScaling # or: bandwidthHzAcquistionReadout / (nPixelsReadout * frequencyShiftScaling)
 
    executeAndWait(["3dcalc", "-a", freqOrig, "-b", maskOrig,
